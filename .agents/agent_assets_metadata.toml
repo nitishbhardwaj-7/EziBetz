@@ -1,0 +1,38 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "FugBKlP8aH8KjRSLYvKJz"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "ezibetz_app_icon"
+
+[[generated]]
+id = "77pUGfppxmP1rrnvcIi-a"
+uri = "file://artifacts/mobile/assets/images/dice_card.png"
+type = "image"
+title = "dice_game_card"
+
+[[generated]]
+id = "B23RB99E6QvcAWlCqsTAr"
+uri = "file://artifacts/mobile/assets/images/slots_card.png"
+type = "image"
+title = "slots_game_card"
+
+[[generated]]
+id = "FiVmrUUTOI_cPMIMgzUdU"
+uri = "file://artifacts/mobile/assets/images/blackjack_card.png"
+type = "image"
+title = "blackjack_game_card"
+
+[[generated]]
+id = "HcQ-M6G2IBJ1Crn0O9bJK"
+uri = "file://artifacts/mobile/assets/images/roulette_card.png"
+type = "image"
+title = "roulette_game_card"
+
+[[generated]]
+id = "dp3kwDqSDu5w0NQqDcOU2"
+uri = "file://artifacts/mobile/assets/images/hero_banner.png"
+type = "image"
+title = "hero_banner"
