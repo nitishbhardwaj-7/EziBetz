@@ -1,4 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -50,18 +51,14 @@ export function GameHeader({ title, showBack = false }: GameHeaderProps) {
             </TouchableOpacity>
           )}
           <View style={styles.logoRow}>
-            <LinearGradient
-              colors={["#c59aff", "#9547f7"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.logoBox}
-            >
-              <Text style={styles.logoE}>E</Text>
-            </LinearGradient>
+            <Image
+              source={require("@/assets/images/ezibetz_logo.png")}
+              style={styles.logoImg}
+              contentFit="contain"
+            />
             <Text style={[styles.logoText, { color: colors.foreground }]}>
               EZIBETZ
             </Text>
-            <View style={[styles.dot, { backgroundColor: colors.primary }]} />
           </View>
         </View>
 
@@ -109,29 +106,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  logoBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoE: {
-    color: "#fff",
-    fontWeight: "900",
-    fontSize: 18,
-    fontStyle: "italic",
+  logoImg: {
+    width: 36,
+    height: 36,
   },
   logoText: {
     fontSize: 20,
     fontWeight: "900",
     fontStyle: "italic",
     letterSpacing: -0.5,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
   },
   balancePill: {
     flexDirection: "row",

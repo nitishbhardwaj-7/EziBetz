@@ -95,14 +95,11 @@ export default function GamesScreen() {
             </LinearGradient>
           </View>
           <View style={styles.logoRow}>
-            <LinearGradient
-              colors={["#c59aff", "#9547f7"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.logoBox}
-            >
-              <Text style={styles.logoE}>E</Text>
-            </LinearGradient>
+            <Image
+              source={require("@/assets/images/ezibetz_logo.png")}
+              style={styles.logoImg}
+              contentFit="contain"
+            />
             <Text style={[styles.logoText, { color: colors.foreground }]}>EZIBETZ</Text>
           </View>
         </View>
@@ -417,18 +414,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  logoBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoE: {
-    color: "#fff",
-    fontWeight: "900",
-    fontSize: 18,
-    fontStyle: "italic",
+  logoImg: {
+    width: 36,
+    height: 36,
   },
   logoText: {
     fontSize: 20,
