@@ -55,6 +55,15 @@ const GAMES = [
     image: require("@/assets/images/roulette_card.png"),
     route: "/games/roulette",
   },
+  {
+    id: "matka",
+    title: "Matka",
+    subtitle: "150× PAYOUT",
+    badge: "NEW",
+    badgeColor: "#ffca28",
+    image: require("@/assets/images/matka_card.png"),
+    route: "/games/matka",
+  },
 ];
 
 const LIVE_FEED = [
