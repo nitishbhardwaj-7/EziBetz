@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useGameSound } from "@/hooks/useGameSound";
 import React, { useRef, useState } from "react";
 import {
   Animated,
@@ -46,6 +47,7 @@ export default function RouletteGameScreen() {
     msg: string;
   } | null>(null);
 
+  const { playRoll, playWin, playLose } = useGameSound();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
@@ -56,6 +58,7 @@ export default function RouletteGameScreen() {
   const pullTrigger = () => {
     if (isPulling || selectedChamber === null || parsedBet <= 0 || parsedBet > balance) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    playRoll();
     setIsPulling(true);
     setLastResult(null);
 
@@ -84,6 +87,7 @@ export default function RouletteGameScreen() {
           msg: `SURVIVED! +${formatBalance(winAmount - parsedBet)}`,
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        playWin();
       } else {
         updateBalance(-parsedBet);
         setLastResult({
@@ -92,6 +96,7 @@ export default function RouletteGameScreen() {
           msg: `ELIMINATED! -${formatBalance(parsedBet)}`,
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playLose();
       }
 
       setIsPulling(false);

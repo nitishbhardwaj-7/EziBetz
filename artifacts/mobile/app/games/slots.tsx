@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useGameSound } from "@/hooks/useGameSound";
 import React, { useRef, useState } from "react";
 import {
   Animated,
@@ -90,6 +91,7 @@ export default function SlotsGameScreen() {
   const [lastResult, setLastResult] = useState<{ win: boolean; msg: string; payout?: string } | null>(null);
   const [jackpot, setJackpot] = useState(2847312);
 
+  const { playSpin, playWin, playJackpot, playLose } = useGameSound();
   const spinAnims = useRef(
     Array.from({ length: NUM_REELS }, () => new Animated.Value(0))
   ).current;
@@ -99,6 +101,7 @@ export default function SlotsGameScreen() {
   const spin = () => {
     if (isSpinning || betAmount > balance || betAmount <= 0) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    playSpin();
     setIsSpinning(true);
     setLastResult(null);
     updateBalance(-betAmount);
@@ -125,9 +128,11 @@ export default function SlotsGameScreen() {
         updateBalance(payout);
         setLastResult({ win: true, msg: result.msg, payout: formatBalance(payout) });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (result.multiplier >= 100) playJackpot(); else playWin();
       } else {
         setLastResult({ win: false, msg: "TRY AGAIN!" });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playLose();
       }
       setIsSpinning(false);
     }, 900 + NUM_REELS * 80);

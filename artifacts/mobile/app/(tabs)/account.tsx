@@ -1,6 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -618,7 +619,7 @@ export default function AccountScreen() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 100;
+  const bottomPad = Platform.OS === "web" ? 84 : insets.bottom + 120;
 
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -755,7 +756,7 @@ export default function AccountScreen() {
                 {formatBalance(balance)}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => {}}>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/wallet" as any)}>
               <LinearGradient
                 colors={[colors.primary, colors.primaryDim]}
                 style={styles.depositBtn}
@@ -821,7 +822,7 @@ export default function AccountScreen() {
           <TouchableOpacity
             style={[
               styles.logoutBtn,
-              { borderColor: colors.destructive, marginBottom: 20 },
+              { borderColor: colors.destructive, marginBottom: 50 },
             ]}
             onPress={handleLogout}
           >

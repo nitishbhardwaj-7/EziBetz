@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useGameSound } from "@/hooks/useGameSound";
 import React, { useState } from "react";
 import {
   Platform,
@@ -34,6 +35,7 @@ export default function BlackjackGameScreen() {
   const colors = useColors();
   const { balance, updateBalance, formatBalance } = useBalance();
 
+  const { playDeal, playClick, playWin, playLose, playJackpot } = useGameSound();
   const [bet, setBet] = useState(100);
   const [gameState, setGameState] = useState<GameState>("betting");
   const [deck, setDeck] = useState<Card[]>([]);
@@ -47,6 +49,7 @@ export default function BlackjackGameScreen() {
   const startGame = () => {
     if (bet > balance || bet <= 0) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playDeal();
 
     let newDeck = shuffleDeck(createDeck());
     let [c1, d1] = dealCard(newDeck); newDeck = d1;
@@ -74,6 +77,7 @@ export default function BlackjackGameScreen() {
   const hit = () => {
     if (gameState !== "playing") return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playClick();
     let newDeck = [...deck];
     let [card, rest] = dealCard(newDeck);
     newDeck = rest;
@@ -184,10 +188,15 @@ export default function BlackjackGameScreen() {
     setResultMsg(msg);
     setWinAmount(payout);
     setGameState("result");
-    if (payout >= 0) {
+    if (payout > bet) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playJackpot();
+    } else if (payout >= 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playWin();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playLose();
     }
   };
 

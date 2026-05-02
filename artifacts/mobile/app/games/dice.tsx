@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useGameSound } from "@/hooks/useGameSound";
 import React, { useRef, useState } from "react";
 import {
   Animated,
@@ -34,6 +35,7 @@ export default function DiceGameScreen() {
   const [rollHistory, setRollHistory] = useState<number[]>([6, 2, 4, 1, 5, 3]);
   const [lastResult, setLastResult] = useState<{ win: boolean; msg: string } | null>(null);
 
+  const { playRoll, playWin, playLose } = useGameSound();
   const spinAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -45,6 +47,7 @@ export default function DiceGameScreen() {
     if (isRolling || !prediction || parsedBet <= 0 || parsedBet > balance) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    playRoll();
     setIsRolling(true);
     setLastResult(null);
 
@@ -82,10 +85,12 @@ export default function DiceGameScreen() {
         updateBalance(parsedBet * multiplier - parsedBet);
         setLastResult({ win: true, msg: `YOU WIN! +${formatBalance(parsedBet * (multiplier - 1))}` });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        playWin();
       } else {
         updateBalance(-parsedBet);
         setLastResult({ win: false, msg: `YOU LOSE! -${formatBalance(parsedBet)}` });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playLose();
       }
 
       setIsRolling(false);

@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useGameSound } from "@/hooks/useGameSound";
 import React, { useRef, useState } from "react";
 import {
   Animated,
@@ -115,6 +116,7 @@ export default function MatkaScreen() {
   const colors = useColors();
   const { balance, updateBalance, formatBalance } = useBalance();
 
+  const { playDrum, playReveal, playWin, playLose, playJackpot } = useGameSound();
   const [betType, setBetType] = useState<BetType>("single");
   const [betSide, setBetSide] = useState<BetSide>("open");
   const [selectedDigit, setSelectedDigit] = useState<number | null>(null);
@@ -173,6 +175,7 @@ export default function MatkaScreen() {
     if (!canBet() || !pick || isPlaying) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    playDrum();
     setIsPlaying(true);
     setResult(null);
     setLastWon(null);
@@ -189,6 +192,7 @@ export default function MatkaScreen() {
       await delay(450);
       Animated.spring(openFade[i], { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      playReveal();
     }
     await delay(350);
     Animated.spring(ankFadeOpen, { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
@@ -200,6 +204,7 @@ export default function MatkaScreen() {
       await delay(450);
       Animated.spring(closeFade[i], { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      playReveal();
     }
     await delay(350);
     Animated.spring(ankFadeClose, { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
@@ -215,8 +220,10 @@ export default function MatkaScreen() {
     if (won) {
       updateBalance(payout);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (multiplier >= 90) playJackpot(); else playWin();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playLose();
       Animated.sequence([
         Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
         Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
