@@ -1,13 +1,17 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Dimensions,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -15,6 +19,119 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
+
+const QUICK_AMOUNTS = [100, 250, 500, 1000];
+
+function DepositModal({
+  visible,
+  type,
+  onClose,
+  onConfirm,
+  balance,
+  colors,
+}: {
+  visible: boolean;
+  type: "deposit" | "withdraw";
+  onClose: () => void;
+  onConfirm: (amount: number) => void;
+  balance: number;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [inputAmount, setInputAmount] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const insets = useSafeAreaInsets();
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
+  const isDeposit = type === "deposit";
+  const parsed = parseFloat(inputAmount.replace(/,/g, "")) || 0;
+
+  const handleConfirm = () => {
+    if (parsed < 10) { setError("Minimum amount is $10.00"); return; }
+    if (!isDeposit && parsed > balance) { setError("Insufficient balance"); return; }
+    if (isDeposit && parsed > 10000) { setError("Max deposit is $10,000"); return; }
+    setError(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSuccess(true);
+    setTimeout(() => { onConfirm(parsed); setSuccess(false); setInputAmount(""); onClose(); }, 1000);
+  };
+
+  const handleClose = () => { setInputAmount(""); setError(null); setSuccess(false); onClose(); };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "flex-end" }}>
+        <TouchableOpacity style={styles.modalBackdrop} onPress={handleClose} />
+        <View style={[styles.modalSheet, { backgroundColor: colors.card, paddingBottom: bottomPad }]}>
+          <View style={[styles.modalHandle, { backgroundColor: colors.outlineVariant }]} />
+          <View style={styles.modalHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={[styles.modalIconWrap, { backgroundColor: isDeposit ? `${colors.primary}20` : `${colors.secondary}15` }]}>
+                <MaterialCommunityIcons name={isDeposit ? "arrow-down" : "arrow-up"} size={22} color={isDeposit ? colors.primary : colors.secondary} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>{isDeposit ? "Deposit Funds" : "Withdraw Funds"}</Text>
+            </View>
+            <TouchableOpacity onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.accent }]}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+
+          {success ? (
+            <View style={styles.successBox}>
+              <View style={[styles.successIcon, { backgroundColor: `${colors.secondary}20` }]}>
+                <MaterialCommunityIcons name="check-circle" size={48} color={colors.secondary} />
+              </View>
+              <Text style={[styles.successTitle, { color: colors.foreground }]}>{isDeposit ? "Deposit Successful!" : "Withdrawal Initiated!"}</Text>
+              <Text style={[styles.successSub, { color: colors.mutedForeground }]}>{isDeposit ? `$${parsed.toFixed(2)} added to your balance` : `$${parsed.toFixed(2)} will arrive within 1-3 business days`}</Text>
+            </View>
+          ) : (
+            <View style={styles.modalContent}>
+              {!isDeposit && (
+                <View style={[styles.balancePillModal, { backgroundColor: colors.accent, borderColor: colors.border }]}>
+                  <MaterialCommunityIcons name="wallet" size={16} color={colors.secondary} />
+                  <Text style={[{ fontSize: 13, fontWeight: "600" as const }, { color: colors.mutedForeground }]}>
+                    Available: <Text style={{ color: colors.secondary, fontWeight: "900" as const }}>${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+                  </Text>
+                </View>
+              )}
+              <View style={[styles.amountInput, { backgroundColor: colors.input, borderColor: error ? colors.destructive : colors.border }]}>
+                <Text style={[styles.dollarSign, { color: colors.primary }]}>$</Text>
+                <TextInput value={inputAmount} onChangeText={(v) => { setInputAmount(v); setError(null); }} placeholder="0.00" placeholderTextColor={colors.mutedForeground} keyboardType="decimal-pad" style={[styles.amountTextInput, { color: colors.primary }]} autoFocus />
+              </View>
+              {error && (
+                <View style={[styles.errorRow, { borderColor: colors.destructive, backgroundColor: `${colors.destructive}12` }]}>
+                  <MaterialCommunityIcons name="alert-circle" size={14} color={colors.destructive} />
+                  <Text style={[{ fontSize: 12, fontWeight: "600" as const, flex: 1 }, { color: colors.destructive }]}>{error}</Text>
+                </View>
+              )}
+              <View style={styles.quickRow}>
+                {QUICK_AMOUNTS.map((amt) => (
+                  <TouchableOpacity key={amt} onPress={() => { setInputAmount(String(amt)); setError(null); }}
+                    style={[styles.quickBtn, { backgroundColor: parsed === amt ? `${colors.primary}25` : colors.accent, borderColor: parsed === amt ? colors.primary : colors.border }]}>
+                    <Text style={[styles.quickBtnText, { color: parsed === amt ? colors.primary : colors.foreground }]}>${amt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={[{ fontSize: 9, fontWeight: "800" as const, letterSpacing: 2, textTransform: "uppercase" as const }, { color: colors.mutedForeground }]}>PAYMENT METHOD</Text>
+              <View style={styles.methodRow}>
+                {[{ icon: "credit-card-outline", label: "Card" }, { icon: "bitcoin", label: "Crypto" }, { icon: "bank-outline", label: "Bank" }].map((m, i) => (
+                  <TouchableOpacity key={i} style={[styles.methodBtn, { backgroundColor: i === 0 ? `${colors.primary}15` : colors.accent, borderColor: i === 0 ? colors.primary : colors.border }]}>
+                    <MaterialCommunityIcons name={m.icon as any} size={20} color={i === 0 ? colors.primary : colors.mutedForeground} />
+                    <Text style={[{ fontSize: 11, fontWeight: "700" as const }, { color: i === 0 ? colors.primary : colors.mutedForeground }]}>{m.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity onPress={handleConfirm} activeOpacity={0.85}>
+                <LinearGradient colors={[colors.primary, colors.primaryDim]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.confirmBtn}>
+                  <Text style={[styles.confirmBtnText, { color: colors.primaryForeground }]}>{isDeposit ? "DEPOSIT FUNDS" : "WITHDRAW FUNDS"}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
 
 const { width } = Dimensions.get("window");
 
@@ -76,8 +193,9 @@ const LIVE_FEED = [
 export default function GamesScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const { balance, formatBalance } = useBalance();
+  const { balance, updateBalance, formatBalance } = useBalance();
   const [activeTab, setActiveTab] = useState<"wins" | "highrollers">("wins");
+  const [depositModal, setDepositModal] = useState<"deposit" | "withdraw" | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 80;
@@ -95,19 +213,13 @@ export default function GamesScreen() {
         ]}
       >
         <View style={styles.headerLeft}>
-          <View style={[styles.avatarRing, { borderColor: colors.primary }]}>
-            <LinearGradient
-              colors={[colors.primary, colors.primaryDim]}
-              style={styles.avatarGradient}
-            >
-              <Text style={styles.avatarText}>EZ</Text>
-            </LinearGradient>
-          </View>
           <View style={styles.logoRow}>
             <Image
               source={require("@/assets/images/ezibetz_logo.png")}
               style={styles.logoImg}
               contentFit="contain"
+              cachePolicy="memory-disk"
+              priority="high"
             />
             <Text style={[styles.logoText, { color: colors.foreground }]}>EZIBETZ</Text>
           </View>
@@ -130,6 +242,8 @@ export default function GamesScreen() {
             source={require("@/assets/images/hero_banner.png")}
             style={styles.heroImage}
             contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="high"
           />
           <LinearGradient
             colors={["rgba(17,10,30,0.95)", "rgba(17,10,30,0.3)", "transparent"]}
@@ -255,6 +369,8 @@ export default function GamesScreen() {
                     source={game.image}
                     style={styles.gameImage}
                     contentFit="cover"
+                    cachePolicy="memory-disk"
+                    priority="normal"
                   />
                   {game.badge && (
                     <View
@@ -372,7 +488,7 @@ export default function GamesScreen() {
       </ScrollView>
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab}>
+      <TouchableOpacity style={styles.fab} onPress={() => setDepositModal("deposit")} activeOpacity={0.85}>
         <LinearGradient
           colors={[colors.primary, colors.primaryDim]}
           start={{ x: 0, y: 0 }}
@@ -382,6 +498,17 @@ export default function GamesScreen() {
           <MaterialCommunityIcons name="rocket-launch" size={24} color={colors.primaryForeground} />
         </LinearGradient>
       </TouchableOpacity>
+
+      {depositModal && (
+        <DepositModal
+          visible={true}
+          type={depositModal}
+          onClose={() => setDepositModal(null)}
+          onConfirm={(amt) => updateBalance(depositModal === "deposit" ? amt : -amt)}
+          balance={balance}
+          colors={colors}
+        />
+      )}
     </View>
   );
 }
@@ -401,31 +528,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  avatarRing: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    overflow: "hidden",
-  },
-  avatarGradient: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    color: "#420082",
-    fontWeight: "900",
-    fontSize: 13,
-  },
   logoRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
   logoImg: {
-    width: 36,
-    height: 36,
+    width: 43,
+    height: 43,
   },
   logoText: {
     fontSize: 20,
@@ -752,5 +862,150 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
+  },
+  modalBackdrop: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  modalIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    fontStyle: "italic",
+    letterSpacing: -0.5,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalContent: {
+    gap: 16,
+    paddingBottom: 8,
+  },
+  balancePillModal: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  amountInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  dollarSign: {
+    fontSize: 26,
+    fontWeight: "900",
+    marginRight: 6,
+  },
+  amountTextInput: {
+    flex: 1,
+    fontSize: 32,
+    fontWeight: "900",
+    letterSpacing: -1,
+  },
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  quickRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  quickBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  quickBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  methodRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  methodBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    gap: 6,
+  },
+  confirmBtn: {
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  confirmBtnText: {
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+  successBox: {
+    alignItems: "center",
+    paddingVertical: 32,
+    gap: 12,
+  },
+  successIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    fontStyle: "italic",
+  },
+  successSub: {
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });

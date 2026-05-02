@@ -49,7 +49,7 @@ export function GameHeader({ title, showBack = false }: GameHeaderProps) {
                 color={colors.foreground}
               />
             </TouchableOpacity>
-          )}
+          )} 
           <View style={styles.logoRow}>
             <Image
               source={require("@/assets/images/ezibetz_logo.png")}

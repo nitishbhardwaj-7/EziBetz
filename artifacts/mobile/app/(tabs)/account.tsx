@@ -66,14 +66,22 @@ function MenuModal({
 
   const getTitle = () => {
     switch (menuKey) {
-      case "edit_profile": return "Edit Profile";
-      case "security": return "Security & KYC";
-      case "notifications": return "Notifications";
-      case "limits": return "Transaction Limits";
-      case "language": return "Language & Region";
-      case "help": return "Help & Support";
-      case "terms": return "Terms & Privacy";
-      default: return "";
+      case "edit_profile":
+        return "Edit Profile";
+      case "security":
+        return "Security & KYC";
+      case "notifications":
+        return "Notifications";
+      case "limits":
+        return "Transaction Limits";
+      case "language":
+        return "Language & Region";
+      case "help":
+        return "Help & Support";
+      case "terms":
+        return "Terms & Privacy";
+      default:
+        return "";
     }
   };
 
@@ -87,23 +95,50 @@ function MenuModal({
                 colors={[colors.primary, colors.primaryDim]}
                 style={styles.modalAvatar}
               >
-                <Text style={[styles.modalAvatarText, { color: colors.primaryForeground }]}>
+                <Text
+                  style={[
+                    styles.modalAvatarText,
+                    { color: colors.primaryForeground },
+                  ]}
+                >
                   {(displayName || "EZ")[0].toUpperCase()}
                 </Text>
               </LinearGradient>
               <TouchableOpacity
                 style={[styles.changePhotoBtn, { borderColor: colors.primary }]}
               >
-                <Text style={[styles.changePhotoText, { color: colors.primary }]}>
+                <Text
+                  style={[styles.changePhotoText, { color: colors.primary }]}
+                >
                   CHANGE AVATAR
                 </Text>
               </TouchableOpacity>
             </View>
-            <FieldInput label="DISPLAY NAME" value={displayName} onChange={setDisplayName} colors={colors} />
-            <FieldInput label="EMAIL" value={email} onChange={setEmail} colors={colors} keyboardType="email-address" />
-            <FieldInput label="USERNAME" value={user?.username ?? ""} onChange={() => {}} colors={colors} editable={false} />
+            <FieldInput
+              label="DISPLAY NAME"
+              value={displayName}
+              onChange={setDisplayName}
+              colors={colors}
+            />
+            <FieldInput
+              label="EMAIL"
+              value={email}
+              onChange={setEmail}
+              colors={colors}
+              keyboardType="email-address"
+            />
+            <FieldInput
+              label="USERNAME"
+              value={user?.username ?? ""}
+              onChange={() => {}}
+              colors={colors}
+              editable={false}
+            />
             <TouchableOpacity
-              onPress={() => { updateProfile({ displayName, email }); onClose(); }}
+              onPress={() => {
+                updateProfile({ displayName, email });
+                onClose();
+              }}
             >
               <LinearGradient
                 colors={[colors.primary, colors.primaryDim]}
@@ -111,7 +146,12 @@ function MenuModal({
                 end={{ x: 1, y: 0 }}
                 style={styles.saveBtn}
               >
-                <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
+                <Text
+                  style={[
+                    styles.saveBtnText,
+                    { color: colors.primaryForeground },
+                  ]}
+                >
                   SAVE CHANGES
                 </Text>
               </LinearGradient>
@@ -122,23 +162,87 @@ function MenuModal({
       case "security":
         return (
           <View style={styles.modalContent}>
-            <View style={[styles.kycBadge, { backgroundColor: `${colors.secondary}15`, borderColor: colors.secondary }]}>
-              <MaterialCommunityIcons name="check-decagram" size={20} color={colors.secondary} />
+            <View
+              style={[
+                styles.kycBadge,
+                {
+                  backgroundColor: `${colors.secondary}15`,
+                  borderColor: colors.secondary,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="check-decagram"
+                size={20}
+                color={colors.secondary}
+              />
               <View>
-                <Text style={[styles.kycTitle, { color: colors.secondary }]}>IDENTITY VERIFIED</Text>
-                <Text style={[styles.kycSub, { color: colors.mutedForeground }]}>KYC Level 2 Complete</Text>
+                <Text style={[styles.kycTitle, { color: colors.secondary }]}>
+                  IDENTITY VERIFIED
+                </Text>
+                <Text
+                  style={[styles.kycSub, { color: colors.mutedForeground }]}
+                >
+                  KYC Level 2 Complete
+                </Text>
               </View>
             </View>
-            <ToggleRow label="Two-Factor Authentication" sub="Protect your account with 2FA" value={twoFactor} onChange={setTwoFactor} colors={colors} />
-            <TouchableOpacity style={[styles.securityAction, { borderColor: colors.border, backgroundColor: colors.accent }]}>
-              <MaterialCommunityIcons name="lock-reset" size={20} color={colors.primary} />
-              <Text style={[styles.securityActionText, { color: colors.foreground }]}>Change Password</Text>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.mutedForeground} />
+            <ToggleRow
+              label="Two-Factor Authentication"
+              sub="Protect your account with 2FA"
+              value={twoFactor}
+              onChange={setTwoFactor}
+              colors={colors}
+            />
+            <TouchableOpacity
+              style={[
+                styles.securityAction,
+                { borderColor: colors.border, backgroundColor: colors.accent },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="lock-reset"
+                size={20}
+                color={colors.primary}
+              />
+              <Text
+                style={[
+                  styles.securityActionText,
+                  { color: colors.foreground },
+                ]}
+              >
+                Change Password
+              </Text>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color={colors.mutedForeground}
+              />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.securityAction, { borderColor: colors.border, backgroundColor: colors.accent }]}>
-              <MaterialCommunityIcons name="devices" size={20} color={colors.primary} />
-              <Text style={[styles.securityActionText, { color: colors.foreground }]}>Active Sessions</Text>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.mutedForeground} />
+            <TouchableOpacity
+              style={[
+                styles.securityAction,
+                { borderColor: colors.border, backgroundColor: colors.accent },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="devices"
+                size={20}
+                color={colors.primary}
+              />
+              <Text
+                style={[
+                  styles.securityActionText,
+                  { color: colors.foreground },
+                ]}
+              >
+                Active Sessions
+              </Text>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color={colors.mutedForeground}
+              />
             </TouchableOpacity>
           </View>
         );
@@ -146,19 +250,40 @@ function MenuModal({
       case "notifications":
         return (
           <View style={styles.modalContent}>
-            <ToggleRow label="Push Notifications" sub="Game results, promotions" value={notifPush} onChange={setNotifPush} colors={colors} />
-            <ToggleRow label="Email Notifications" sub="Account updates, receipts" value={notifEmail} onChange={setNotifEmail} colors={colors} />
-            <ToggleRow label="Promotion Alerts" sub="Bonuses, free spins, events" value={notifPromos} onChange={setNotifPromos} colors={colors} />
-            <TouchableOpacity
-              onPress={onClose}
-            >
+            <ToggleRow
+              label="Push Notifications"
+              sub="Game results, promotions"
+              value={notifPush}
+              onChange={setNotifPush}
+              colors={colors}
+            />
+            <ToggleRow
+              label="Email Notifications"
+              sub="Account updates, receipts"
+              value={notifEmail}
+              onChange={setNotifEmail}
+              colors={colors}
+            />
+            <ToggleRow
+              label="Promotion Alerts"
+              sub="Bonuses, free spins, events"
+              value={notifPromos}
+              onChange={setNotifPromos}
+              colors={colors}
+            />
+            <TouchableOpacity onPress={onClose}>
               <LinearGradient
                 colors={[colors.primary, colors.primaryDim]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.saveBtn}
               >
-                <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
+                <Text
+                  style={[
+                    styles.saveBtnText,
+                    { color: colors.primaryForeground },
+                  ]}
+                >
                   SAVE PREFERENCES
                 </Text>
               </LinearGradient>
@@ -170,21 +295,62 @@ function MenuModal({
         return (
           <View style={styles.modalContent}>
             {[
-              { label: "Daily Deposit Limit", value: "$10,000.00", icon: "arrow-down" },
-              { label: "Daily Withdrawal Limit", value: "$5,000.00", icon: "arrow-up" },
-              { label: "Daily Bet Limit", value: "$2,500.00", icon: "gamepad-variant" },
-              { label: "Session Time Limit", value: "8 hours", icon: "clock-outline" },
+              {
+                label: "Daily Deposit Limit",
+                value: "$10,000.00",
+                icon: "arrow-down",
+              },
+              {
+                label: "Daily Withdrawal Limit",
+                value: "$5,000.00",
+                icon: "arrow-up",
+              },
+              {
+                label: "Daily Bet Limit",
+                value: "$2,500.00",
+                icon: "gamepad-variant",
+              },
+              {
+                label: "Session Time Limit",
+                value: "8 hours",
+                icon: "clock-outline",
+              },
             ].map((item, i) => (
-              <View key={i} style={[styles.limitRow, { borderBottomColor: colors.border }]}>
-                <View style={[styles.limitIcon, { backgroundColor: `${colors.primary}15` }]}>
-                  <MaterialCommunityIcons name={item.icon as any} size={18} color={colors.primary} />
+              <View
+                key={i}
+                style={[styles.limitRow, { borderBottomColor: colors.border }]}
+              >
+                <View
+                  style={[
+                    styles.limitIcon,
+                    { backgroundColor: `${colors.primary}15` },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={item.icon as any}
+                    size={18}
+                    color={colors.primary}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.limitLabel, { color: colors.mutedForeground }]}>{item.label}</Text>
-                  <Text style={[styles.limitValue, { color: colors.foreground }]}>{item.value}</Text>
+                  <Text
+                    style={[
+                      styles.limitLabel,
+                      { color: colors.mutedForeground },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  <Text
+                    style={[styles.limitValue, { color: colors.foreground }]}
+                  >
+                    {item.value}
+                  </Text>
                 </View>
                 <TouchableOpacity>
-                  <Text style={[styles.editLink, { color: colors.primary }]}>Edit</Text>
+                  <Text style={[styles.editLink, { color: colors.primary }]}>
+                    Edit
+                  </Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -194,25 +360,37 @@ function MenuModal({
       case "language":
         return (
           <View style={styles.modalContent}>
-            {["English", "Spanish", "French", "Portuguese", "German"].map((lang, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[
-                  styles.langRow,
-                  {
-                    borderBottomColor: colors.border,
-                    backgroundColor: i === 0 ? `${colors.primary}12` : "transparent",
-                  },
-                ]}
-              >
-                <Text style={[styles.langText, { color: i === 0 ? colors.primary : colors.foreground }]}>
-                  {lang}
-                </Text>
-                {i === 0 && (
-                  <MaterialCommunityIcons name="check-circle" size={20} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
+            {["English", "Spanish", "French", "Portuguese", "German"].map(
+              (lang, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[
+                    styles.langRow,
+                    {
+                      borderBottomColor: colors.border,
+                      backgroundColor:
+                        i === 0 ? `${colors.primary}12` : "transparent",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.langText,
+                      { color: i === 0 ? colors.primary : colors.foreground },
+                    ]}
+                  >
+                    {lang}
+                  </Text>
+                  {i === 0 && (
+                    <MaterialCommunityIcons
+                      name="check-circle"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  )}
+                </TouchableOpacity>
+              ),
+            )}
           </View>
         );
 
@@ -220,19 +398,52 @@ function MenuModal({
         return (
           <View style={styles.modalContent}>
             {[
-              { q: "How do I deposit funds?", a: "Go to the Wallet tab and tap DEPOSIT. We support credit cards, crypto, and bank transfer." },
-              { q: "How long do withdrawals take?", a: "Crypto withdrawals are instant. Bank transfers take 1-3 business days." },
-              { q: "Is this platform fair?", a: "Yes. All games use certified RNG (Random Number Generator) for provably fair results." },
-              { q: "How do I claim a bonus?", a: "Visit the Promotions tab and tap CLAIM on any active offer." },
+              {
+                q: "How do I deposit funds?",
+                a: "Go to the Wallet tab and tap DEPOSIT. We support credit cards, crypto, and bank transfer.",
+              },
+              {
+                q: "How long do withdrawals take?",
+                a: "Crypto withdrawals are instant. Bank transfers take 1-3 business days.",
+              },
+              {
+                q: "Is this platform fair?",
+                a: "Yes. All games use certified RNG (Random Number Generator) for provably fair results.",
+              },
+              {
+                q: "How do I claim a bonus?",
+                a: "Visit the Promotions tab and tap CLAIM on any active offer.",
+              },
             ].map((item, i) => (
-              <View key={i} style={[styles.faqItem, { borderBottomColor: colors.border }]}>
-                <Text style={[styles.faqQ, { color: colors.foreground }]}>{item.q}</Text>
-                <Text style={[styles.faqA, { color: colors.mutedForeground }]}>{item.a}</Text>
+              <View
+                key={i}
+                style={[styles.faqItem, { borderBottomColor: colors.border }]}
+              >
+                <Text style={[styles.faqQ, { color: colors.foreground }]}>
+                  {item.q}
+                </Text>
+                <Text style={[styles.faqA, { color: colors.mutedForeground }]}>
+                  {item.a}
+                </Text>
               </View>
             ))}
-            <View style={[styles.supportCta, { backgroundColor: `${colors.secondary}12`, borderColor: colors.secondary }]}>
-              <MaterialCommunityIcons name="chat-outline" size={20} color={colors.secondary} />
-              <Text style={[styles.supportCtaText, { color: colors.secondary }]}>
+            <View
+              style={[
+                styles.supportCta,
+                {
+                  backgroundColor: `${colors.secondary}12`,
+                  borderColor: colors.secondary,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="chat-outline"
+                size={20}
+                color={colors.secondary}
+              />
+              <Text
+                style={[styles.supportCtaText, { color: colors.secondary }]}
+              >
                 Live Chat Support Available 24/7
               </Text>
             </View>
@@ -243,11 +454,21 @@ function MenuModal({
         return (
           <View style={styles.modalContent}>
             <Text style={[styles.termsText, { color: colors.mutedForeground }]}>
-              {"By using EZIBETZ Gaming you agree to our terms of service. You must be 18+ to play. Gambling involves risk. Please gamble responsibly.\n\n"}
-              <Text style={{ color: colors.foreground, fontWeight: "700" }}>Privacy Policy{"\n"}</Text>
-              {"We collect minimal data to provide our service. We never sell your personal data to third parties. You may request data deletion at any time.\n\n"}
-              <Text style={{ color: colors.foreground, fontWeight: "700" }}>Responsible Gambling{"\n"}</Text>
-              {"If you feel gambling is negatively affecting your life, please contact our support team. We offer self-exclusion tools and support resources."}
+              {
+                "By using EZIBETZ Gaming you agree to our terms of service. You must be 18+ to play. Gambling involves risk. Please gamble responsibly.\n\n"
+              }
+              <Text style={{ color: colors.foreground, fontWeight: "700" }}>
+                Privacy Policy{"\n"}
+              </Text>
+              {
+                "We collect minimal data to provide our service. We never sell your personal data to third parties. You may request data deletion at any time.\n\n"
+              }
+              <Text style={{ color: colors.foreground, fontWeight: "700" }}>
+                Responsible Gambling{"\n"}
+              </Text>
+              {
+                "If you feel gambling is negatively affecting your life, please contact our support team. We offer self-exclusion tools and support resources."
+              }
             </Text>
           </View>
         );
@@ -276,16 +497,27 @@ function MenuModal({
           ]}
         >
           {/* Handle */}
-          <View style={[styles.modalHandle, { backgroundColor: colors.outlineVariant }]} />
+          <View
+            style={[
+              styles.modalHandle,
+              { backgroundColor: colors.outlineVariant },
+            ]}
+          />
 
           {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>{getTitle()}</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              {getTitle()}
+            </Text>
             <TouchableOpacity
               onPress={onClose}
               style={[styles.modalCloseBtn, { backgroundColor: colors.accent }]}
             >
-              <MaterialCommunityIcons name="close" size={18} color={colors.foreground} />
+              <MaterialCommunityIcons
+                name="close"
+                size={18}
+                color={colors.foreground}
+              />
             </TouchableOpacity>
           </View>
 
@@ -315,7 +547,9 @@ function FieldInput({
 }) {
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+        {label}
+      </Text>
       <View
         style={[
           styles.inputRow,
@@ -331,7 +565,10 @@ function FieldInput({
           keyboardType={keyboardType}
           autoCapitalize="none"
           editable={editable}
-          style={[styles.textInput, { color: editable ? colors.foreground : colors.mutedForeground }]}
+          style={[
+            styles.textInput,
+            { color: editable ? colors.foreground : colors.mutedForeground },
+          ]}
         />
       </View>
     </View>
@@ -354,8 +591,12 @@ function ToggleRow({
   return (
     <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.toggleLabel, { color: colors.foreground }]}>{label}</Text>
-        <Text style={[styles.toggleSub, { color: colors.mutedForeground }]}>{sub}</Text>
+        <Text style={[styles.toggleLabel, { color: colors.foreground }]}>
+          {label}
+        </Text>
+        <Text style={[styles.toggleSub, { color: colors.mutedForeground }]}>
+          {sub}
+        </Text>
       </View>
       <Switch
         value={value}
@@ -381,21 +622,17 @@ export default function AccountScreen() {
 
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Sign Out",
-      "Are you sure you want to sign out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign Out",
-          style: "destructive",
-          onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            logout();
-          },
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          logout();
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const openMenu = (key: MenuKey) => {
@@ -420,7 +657,12 @@ export default function AccountScreen() {
             colors={[colors.primary, colors.primaryDim]}
             style={styles.avatarCircle}
           >
-            <Text style={[styles.avatarInitials, { color: colors.primaryForeground }]}>
+            <Text
+              style={[
+                styles.avatarInitials,
+                { color: colors.primaryForeground },
+              ]}
+            >
               {displayInitials}
             </Text>
           </LinearGradient>
@@ -430,13 +672,32 @@ export default function AccountScreen() {
           <Text style={[styles.userHandle, { color: colors.mutedForeground }]}>
             @{user?.username ?? "ezibetz_player"}
           </Text>
-          <View style={[styles.vipBadge, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}>
-            <MaterialCommunityIcons name="crown" size={14} color={colors.primary} />
-            <Text style={[styles.vipBadgeText, { color: colors.primary }]}>PLASMA TIER</Text>
+          <View
+            style={[
+              styles.vipBadge,
+              {
+                backgroundColor: `${colors.primary}20`,
+                borderColor: colors.primary,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="crown"
+              size={14}
+              color={colors.primary}
+            />
+            <Text style={[styles.vipBadgeText, { color: colors.primary }]}>
+              PLASMA TIER
+            </Text>
           </View>
 
           <View style={styles.xpSection}>
-            <View style={[styles.xpBarBg, { backgroundColor: colors.surfaceContainerLow }]}>
+            <View
+              style={[
+                styles.xpBarBg,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
               <LinearGradient
                 colors={[colors.primary, colors.secondary]}
                 start={{ x: 0, y: 0 }}
@@ -459,19 +720,37 @@ export default function AccountScreen() {
           ].map((s, i) => (
             <View
               key={i}
-              style={[styles.statItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+              style={[
+                styles.statItem,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
             >
-              <Text style={[styles.statValue, { color: colors.foreground }]}>{s.value}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+              <Text style={[styles.statValue, { color: colors.foreground }]}>
+                {s.value}
+              </Text>
+              <Text
+                style={[styles.statLabel, { color: colors.mutedForeground }]}
+              >
+                {s.label}
+              </Text>
             </View>
           ))}
         </View>
 
         {/* Balance Summary */}
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-          <View style={[styles.balanceRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.balanceRow,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
             <View>
-              <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>Balance</Text>
+              <Text
+                style={[styles.balanceLabel, { color: colors.mutedForeground }]}
+              >
+                Balance
+              </Text>
               <Text style={[styles.balanceAmount, { color: colors.secondary }]}>
                 {formatBalance(balance)}
               </Text>
@@ -481,7 +760,12 @@ export default function AccountScreen() {
                 colors={[colors.primary, colors.primaryDim]}
                 style={styles.depositBtn}
               >
-                <Text style={[styles.depositBtnText, { color: colors.primaryForeground }]}>
+                <Text
+                  style={[
+                    styles.depositBtnText,
+                    { color: colors.primaryForeground },
+                  ]}
+                >
                   DEPOSIT
                 </Text>
               </LinearGradient>
@@ -491,7 +775,12 @@ export default function AccountScreen() {
 
         {/* Menu */}
         <View style={{ paddingHorizontal: 16 }}>
-          <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.menuCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
             {MENU_ITEMS.map((item, i) => (
               <TouchableOpacity
                 key={i}
@@ -505,13 +794,26 @@ export default function AccountScreen() {
                 activeOpacity={0.7}
                 onPress={() => openMenu(item.key)}
               >
-                <View style={[styles.menuIconWrap, { backgroundColor: `${colors.primary}14` }]}>
-                  <MaterialCommunityIcons name={item.icon as any} size={20} color={colors.primary} />
+                <View
+                  style={[
+                    styles.menuIconWrap,
+                    { backgroundColor: `${colors.primary}14` },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={item.icon as any}
+                    size={20}
+                    color={colors.primary}
+                  />
                 </View>
                 <Text style={[styles.menuLabel, { color: colors.foreground }]}>
                   {item.label}
                 </Text>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.mutedForeground} />
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={20}
+                  color={colors.mutedForeground}
+                />
               </TouchableOpacity>
             ))}
           </View>
@@ -523,12 +825,17 @@ export default function AccountScreen() {
             ]}
             onPress={handleLogout}
           >
-            <MaterialCommunityIcons name="logout" size={20} color={colors.destructive} />
-            <Text style={[styles.logoutText, { color: colors.destructive }]}>Sign Out</Text>
+            <MaterialCommunityIcons
+              name="logout"
+              size={20}
+              color={colors.destructive}
+            />
+            <Text style={[styles.logoutText, { color: colors.destructive }]}>
+              Sign Out
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-
       {/* Menu Modal */}
       <MenuModal
         visible={activeMenu !== null}
@@ -614,7 +921,11 @@ const styles = StyleSheet.create({
   },
   balanceLabel: { fontSize: 11, fontWeight: "600", marginBottom: 2 },
   balanceAmount: { fontSize: 24, fontWeight: "900", letterSpacing: -1 },
-  depositBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 9999 },
+  depositBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 9999,
+  },
   depositBtnText: { fontSize: 12, fontWeight: "900", letterSpacing: 1 },
   menuCard: {
     borderRadius: 20,
