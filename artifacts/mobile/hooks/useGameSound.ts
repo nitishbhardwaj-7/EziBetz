@@ -1,14 +1,42 @@
 import { Platform } from "react-native";
 
-let _ctx: AudioContext | null = null;
+type WaveType = "sine" | "square" | "sawtooth" | "triangle";
 
-function getCtx(): AudioContext | null {
-  if (Platform.OS !== "web" || typeof window === "undefined") return null;
+interface AudioCtx {
+  currentTime: number;
+  state: string;
+  destination: unknown;
+  resume(): void;
+  createOscillator(): {
+    type: WaveType;
+    frequency: { setValueAtTime(v: number, t: number): void };
+    connect(dest: unknown): void;
+    start(t: number): void;
+    stop(t: number): void;
+  };
+  createGain(): {
+    gain: {
+      setValueAtTime(v: number, t: number): void;
+      linearRampToValueAtTime(v: number, t: number): void;
+      exponentialRampToValueAtTime(v: number, t: number): void;
+    };
+    connect(dest: unknown): void;
+  };
+}
+
+let _ctx: AudioCtx | null = null;
+
+function getCtx(): AudioCtx | null {
+  if (Platform.OS !== "web") return null;
+  if (typeof window === "undefined") return null;
   try {
+    const W = window as any;
     if (!_ctx) {
-      _ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const Ctor = W.AudioContext || W.webkitAudioContext;
+      if (!Ctor) return null;
+      _ctx = new Ctor() as AudioCtx;
     }
-    if (_ctx.state === "suspended") _ctx.resume();
+    if ((_ctx as any).state === "suspended") (_ctx as any).resume();
     return _ctx;
   } catch {
     return null;
@@ -19,33 +47,36 @@ function tone(
   freq: number,
   duration: number,
   startAt: number,
-  type: OscillatorType = "sine",
+  wave: WaveType = "sine",
   gainPeak = 0.3
 ) {
   const ctx = getCtx();
   if (!ctx) return;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, ctx.currentTime + startAt);
-  gain.gain.setValueAtTime(0, ctx.currentTime + startAt);
-  gain.gain.linearRampToValueAtTime(gainPeak, ctx.currentTime + startAt + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startAt + duration);
-  osc.start(ctx.currentTime + startAt);
-  osc.stop(ctx.currentTime + startAt + duration + 0.01);
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = wave;
+    const t = ctx.currentTime + startAt;
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(gainPeak, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.start(t);
+    osc.stop(t + duration + 0.01);
+  } catch {
+    // silently ignore
+  }
 }
 
 export function useGameSound() {
   const playWin = () => {
-    const notes = [523, 659, 784, 1047];
-    notes.forEach((f, i) => tone(f, 0.22, i * 0.1, "sine", 0.35));
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, i * 0.1, "sine", 0.35));
   };
 
   const playJackpot = () => {
-    const notes = [523, 659, 784, 880, 1047, 1319, 1568];
-    notes.forEach((f, i) => {
+    [523, 659, 784, 880, 1047, 1319, 1568].forEach((f, i) => {
       tone(f, 0.3, i * 0.1, "sine", 0.45);
       tone(f * 0.5, 0.3, i * 0.1, "sine", 0.2);
     });
@@ -59,8 +90,7 @@ export function useGameSound() {
 
   const playRoll = () => {
     for (let i = 0; i < 10; i++) {
-      const f = 180 + Math.random() * 300;
-      tone(f, 0.06, i * 0.055, "square", 0.12);
+      tone(180 + Math.random() * 300, 0.06, i * 0.055, "square", 0.12);
     }
   };
 
