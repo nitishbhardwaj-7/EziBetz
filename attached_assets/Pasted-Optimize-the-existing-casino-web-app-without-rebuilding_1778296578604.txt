@@ -1,0 +1,156 @@
+Optimize the existing casino web app without rebuilding the project from scratch. Improve performance, animation realism, responsiveness, UI polish, and overall casino experience while preserving the current functionality and architecture.
+
+GOALS:
+- Make the app feel like a premium real casino platform.
+- Keep everything on a single screen with no vertical scrolling.
+- Improve animation smoothness and responsiveness.
+- Refactor only where necessary for performance and maintainability.
+
+--------------------------------------------------
+1. SLOT MACHINE OPTIMIZATION
+--------------------------------------------------
+
+Improve the current slot machine implementation to create a realistic live casino slot experience.
+
+Requirements:
+- All reels must spin smoothly and independently.
+- Add realistic acceleration and deceleration curves.
+- Use staggered stopping timing for reels.
+- Add subtle bounce effect when reels stop.
+- Add motion blur during fast spinning.
+- Improve visual smoothness and FPS performance.
+- Remove jitter, lag, and animation stutter.
+- Add polished winning effects:
+  - glow animations
+  - flashing highlights
+  - subtle celebration effects
+- Keep animations optimized for both desktop and mobile devices.
+
+Animation behavior should feel similar to real online casino slots.
+
+--------------------------------------------------
+2. ROULETTE OPTIMIZATION
+--------------------------------------------------
+
+Improve the roulette wheel animation and realism.
+
+Requirements:
+- Wheel rotation should feel physics-based.
+- Add natural momentum and easing.
+- Ball movement should sync naturally with wheel rotation.
+- Add realistic slowing-down behavior before final result.
+- Improve wheel responsiveness and animation smoothness.
+- Add subtle casino lighting/highlight effects.
+- Make the experience visually immersive and premium.
+
+--------------------------------------------------
+3. SINGLE SCREEN LAYOUT FIX
+--------------------------------------------------
+
+Refactor the layout so the entire experience fits within one screen.
+
+Requirements:
+- Remove unnecessary scrolling.
+- Keep all critical elements visible simultaneously:
+  - balance
+  - controls
+  - game area
+  - betting UI
+  - recent results
+- Use responsive/adaptive sizing instead of overflow scrolling.
+- Ensure proper responsiveness across:
+  - desktop
+  - tablet
+  - mobile
+- Maintain clean spacing and hierarchy without cluttering the UI.
+
+IMPORTANT:
+The user should not need to scroll during gameplay.
+
+--------------------------------------------------
+4. RENAME "MATKA" TO "LUCKY PICK"
+--------------------------------------------------
+
+Replace all instances of:
+"Matka" -> "Lucky Pick"
+
+Update:
+- UI labels
+- routes
+- buttons
+- component names
+- internal references
+- metadata if applicable
+
+Also:
+- Replace the current Lucky Pick logo.
+- Create a visually distinct branding style different from Roulette.
+- Keep branding aligned with the casino theme.
+
+--------------------------------------------------
+5. UI/UX POLISH
+--------------------------------------------------
+
+Enhance the overall visual quality and interaction design.
+
+Style direction:
+- premium casino aesthetic
+- dark theme
+- neon glow accents
+- gold/red highlights
+- smooth transitions
+- animated buttons
+- polished typography
+- modern spacing system
+
+Interaction improvements:
+- smooth hover states
+- animated click feedback
+- responsive transitions
+- better visual hierarchy
+- improve readability and balance
+
+Avoid clutter while maintaining a rich casino feel.
+
+--------------------------------------------------
+6. GAME LOGIC OPTIMIZATION
+--------------------------------------------------
+
+Refine engagement and payout balancing.
+
+Requirements:
+- Early gameplay should provide more frequent small wins.
+- Larger rewards should appear occasionally for excitement.
+- Outcomes should still appear natural and randomized.
+- Use configurable RTP and weighted probability systems.
+- Centralize payout/probability settings into a configurable file.
+
+IMPORTANT:
+Keep logic modular and easy to tune later.
+
+--------------------------------------------------
+7. PERFORMANCE & CODE CLEANUP
+--------------------------------------------------
+
+Optimize the existing codebase.
+
+Requirements:
+- Reduce unnecessary re-renders.
+- Optimize animation rendering performance.
+- Refactor repetitive logic into reusable components.
+- Improve maintainability and scalability.
+- Keep existing functionality working.
+- Preserve compatibility with current architecture.
+
+--------------------------------------------------
+EXPECTED RESULT
+--------------------------------------------------
+
+The final web app should feel like a polished production-ready casino platform with:
+- realistic slot and roulette animations
+- premium modern visuals
+- immersive no-scroll gameplay
+- responsive design
+- smooth performance
+- scalable architecture
+- cleaner optimized codebase

@@ -173,13 +173,13 @@ const GAMES = [
     route: "/games/roulette",
   },
   {
-    id: "matka",
-    title: "Matka",
+    id: "lucky-pick",
+    title: "Lucky Pick",
     subtitle: "150× PAYOUT",
     badge: "NEW",
     badgeColor: "#ffca28",
     image: require("@/assets/images/matka_card.png"),
-    route: "/games/matka",
+    route: "/games/lucky-pick",
   },
 ];
 

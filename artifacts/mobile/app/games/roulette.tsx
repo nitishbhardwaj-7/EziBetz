@@ -4,8 +4,8 @@ import { useGameSound } from "@/hooks/useGameSound";
 import React, { useRef, useState } from "react";
 import {
   Animated,
+  Easing,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,43 +17,49 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { GameHeader } from "@/components/GameHeader";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
+import { ROULETTE_CONFIG } from "@/constants/gameConfig";
 
 const CHAMBER_POSITIONS = [
-  { angle: 90, label: "1" },
-  { angle: 30, label: "2" },
+  { angle: 90,  label: "1" },
+  { angle: 30,  label: "2" },
   { angle: 330, label: "3" },
   { angle: 270, label: "4" },
   { angle: 210, label: "5" },
   { angle: 150, label: "6" },
 ];
 
-const HISTORY = [
-  { chamber: 4, win: true, user: "User_9921", amount: "+$420.00", time: "2m ago" },
-  { chamber: 1, win: false, user: "BetMaster", amount: "-$100.00", time: "5m ago" },
-  { chamber: 3, win: true, user: "Player_X", amount: "+$1,150.00", time: "8m ago" },
+const RECENT_HISTORY = [
+  { chamber: 4, win: true,  user: "User_9921",  amount: "+$420.00",   time: "2m ago" },
+  { chamber: 1, win: false, user: "BetMaster",  amount: "-$100.00",   time: "5m ago" },
+  { chamber: 3, win: true,  user: "Player_X",   amount: "+$1,150.00", time: "8m ago" },
 ];
 
 export default function RouletteGameScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const { balance, updateBalance, formatBalance } = useBalance();
+  const { playRoll, playWin, playLose } = useGameSound();
 
   const [betAmount, setBetAmount] = useState("100.00");
   const [selectedChamber, setSelectedChamber] = useState<number | null>(null);
   const [isPulling, setIsPulling] = useState(false);
   const [lastResult, setLastResult] = useState<{
-    win: boolean;
-    chamber: number;
-    msg: string;
+    win: boolean; chamber: number; msg: string;
   } | null>(null);
 
-  const { playRoll, playWin, playLose } = useGameSound();
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const resultFlashAnim = useRef(new Animated.Value(0)).current;
+  const spinBtnAnim = useRef(new Animated.Value(1)).current;
+  // Track cumulative rotation so each spin continues from previous angle
+  const cumulativeRotation = useRef(0);
 
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
   const parsedBet = parseFloat(betAmount) || 0;
-  const multiplier = 5.84;
+  const { multiplier } = ROULETTE_CONFIG;
+
+  const CYLINDER_SIZE = 240;
+  const CENTER = CYLINDER_SIZE / 2;
+  const CHAMBER_RADIUS = 82;
 
   const pullTrigger = () => {
     if (isPulling || selectedChamber === null || parsedBet <= 0 || parsedBet > balance) return;
@@ -62,19 +68,32 @@ export default function RouletteGameScreen() {
     setIsPulling(true);
     setLastResult(null);
 
+    // Button press effect
     Animated.sequence([
-      Animated.timing(rotateAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-    ]).start(() => rotateAnim.setValue(0));
+      Animated.timing(spinBtnAnim, { toValue: 0.94, duration: 80, useNativeDriver: true }),
+      Animated.timing(spinBtnAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]),
-      { iterations: 3 }
-    ).start();
+    // Physics-based multi-rotation
+    const extraRotations =
+      ROULETTE_CONFIG.totalSpinRotations.min +
+      Math.random() * (ROULETTE_CONFIG.totalSpinRotations.max - ROULETTE_CONFIG.totalSpinRotations.min);
+    const landingFraction = Math.random(); // random fraction of one rotation
+    const totalDegrees = extraRotations * 360 + landingFraction * 360;
 
-    setTimeout(() => {
+    const startValue = cumulativeRotation.current;
+    const endValue = startValue + totalDegrees;
+    cumulativeRotation.current = endValue;
+
+    rotateAnim.setValue(startValue);
+
+    Animated.timing(rotateAnim, {
+      toValue: endValue,
+      duration: ROULETTE_CONFIG.spinDuration,
+      easing: Easing.out(Easing.exp),
+      useNativeDriver: true,
+    }).start(() => {
+      // Determine result
       const firingChamber = Math.floor(Math.random() * 6) + 1;
       const isBullet = firingChamber === selectedChamber;
 
@@ -99,89 +118,91 @@ export default function RouletteGameScreen() {
         playLose();
       }
 
+      // Flash result
+      Animated.sequence([
+        Animated.timing(resultFlashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(resultFlashAnim, { toValue: 0.7, duration: 200, useNativeDriver: true }),
+        Animated.timing(resultFlashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+
       setIsPulling(false);
-    }, 900);
+    });
   };
 
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
+  const rotateDeg = rotateAnim.interpolate({
+    inputRange: [cumulativeRotation.current - 3600, cumulativeRotation.current + 3600],
+    outputRange: ["-3600deg", "3600deg"],
+    extrapolate: "extend",
   });
-
-  const CYLINDER_SIZE = 260;
-  const CENTER = CYLINDER_SIZE / 2;
-  const CHAMBER_RADIUS = 90;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <GameHeader showBack title="Roulette" />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 20 }]}
-      >
-        {/* Header */}
-        <View style={styles.gameHeader}>
-          <View style={styles.titleRow}>
-            <View style={[styles.accentBar, { backgroundColor: colors.secondary }]} />
+      <View style={[styles.content, { paddingBottom: bottomPad }]}>
+        {/* Title row */}
+        <View style={styles.titleRow}>
+          <View style={[styles.accentBar, { backgroundColor: colors.secondary }]} />
+          <View>
             <Text style={[styles.gameTitle, { color: colors.foreground }]}>
               NEON <Text style={{ color: colors.primary }}>ROULETTE</Text>
             </Text>
+            <Text style={[styles.odds, { color: colors.mutedForeground }]}>
+              CHAMBER ODDS:{" "}
+              <Text style={{ color: colors.secondary, fontWeight: "800" }}>16.6%</Text>
+              {"  "}WIN MULTIPLIER:{" "}
+              <Text style={{ color: colors.tertiary, fontWeight: "800" }}>×{multiplier}</Text>
+            </Text>
           </View>
-          <Text style={[styles.odds, { color: colors.mutedForeground }]}>
-            CHAMBER ODDS:{" "}
-            <Text style={{ color: colors.secondary, fontWeight: "800" }}>16.6%</Text>
-          </Text>
         </View>
 
-        {/* Cylinder Visual */}
+        {/* Cylinder Stage */}
         <View
           style={[
             styles.cylinderStage,
             { backgroundColor: "rgba(30,21,46,0.7)", borderColor: colors.border },
           ]}
         >
-          <View style={[styles.bgGlow, { backgroundColor: `${colors.primary}18` }]} />
+          <View style={[styles.bgGlow, { backgroundColor: `${colors.primary}14` }]} />
+
           <Animated.View
             style={[
               styles.cylinderContainer,
-              { width: CYLINDER_SIZE, height: CYLINDER_SIZE, transform: [{ rotate }] },
+              {
+                width: CYLINDER_SIZE,
+                height: CYLINDER_SIZE,
+                transform: [{ rotate: rotateDeg }],
+              },
             ]}
           >
-            {/* Outer ring */}
+            {/* Outer dashed ring */}
             <View
               style={[
                 styles.outerRing,
-                {
-                  width: CYLINDER_SIZE,
-                  height: CYLINDER_SIZE,
-                  borderRadius: CYLINDER_SIZE / 2,
-                  borderColor: `${colors.primary}30`,
-                },
+                { width: CYLINDER_SIZE, height: CYLINDER_SIZE, borderRadius: CYLINDER_SIZE / 2, borderColor: `${colors.primary}25` },
               ]}
             />
-            {/* Inner circle */}
+            {/* Inner disc */}
             <View
               style={[
                 styles.innerCircle,
                 {
-                  width: CYLINDER_SIZE - 32,
-                  height: CYLINDER_SIZE - 32,
-                  borderRadius: (CYLINDER_SIZE - 32) / 2,
+                  width: CYLINDER_SIZE - 28,
+                  height: CYLINDER_SIZE - 28,
+                  borderRadius: (CYLINDER_SIZE - 28) / 2,
                   backgroundColor: colors.accent,
                   borderColor: colors.border,
                 },
               ]}
             >
-              {/* Chambers positioned around circle */}
               {CHAMBER_POSITIONS.map((pos, i) => {
                 const chamberNum = i + 1;
                 const rad = (pos.angle * Math.PI) / 180;
-                const x = CENTER + CHAMBER_RADIUS * Math.cos(rad) - 24;
-                const y = CENTER + CHAMBER_RADIUS * Math.sin(rad) - 24;
+                const r = CHAMBER_RADIUS;
+                const cx = (CYLINDER_SIZE - 28) / 2 + r * Math.cos(rad) - 22;
+                const cy = (CYLINDER_SIZE - 28) / 2 + r * Math.sin(rad) - 22;
                 const isSelected = selectedChamber === chamberNum;
-                const isBullet =
-                  lastResult && lastResult.chamber === chamberNum;
+                const isBullet = lastResult?.chamber === chamberNum;
 
                 return (
                   <TouchableOpacity
@@ -190,11 +211,11 @@ export default function RouletteGameScreen() {
                       styles.chamber,
                       {
                         position: "absolute",
-                        left: x - (CYLINDER_SIZE - 32) / 2 + (CYLINDER_SIZE - 32) / 2,
-                        top: y - (CYLINDER_SIZE - 32) / 2 + (CYLINDER_SIZE - 32) / 2,
+                        left: cx,
+                        top: cy,
                         backgroundColor: isSelected
-                          ? `${colors.primary}20`
-                          : `${colors.surfaceContainer}`,
+                          ? `${colors.primary}25`
+                          : colors.surfaceContainer,
                         borderColor: isSelected
                           ? colors.primary
                           : isBullet
@@ -203,7 +224,7 @@ export default function RouletteGameScreen() {
                         shadowColor: isSelected ? colors.primary : "transparent",
                       },
                     ]}
-                    onPress={() => setSelectedChamber(chamberNum)}
+                    onPress={() => !isPulling && setSelectedChamber(chamberNum)}
                   >
                     <Text
                       style={[
@@ -229,72 +250,47 @@ export default function RouletteGameScreen() {
                   colors={[colors.primary, colors.primaryDim]}
                   style={styles.centerHubGradient}
                 >
-                  <MaterialCommunityIcons
-                    name="lightning-bolt"
-                    size={28}
-                    color={colors.primaryForeground}
-                  />
+                  <MaterialCommunityIcons name="lightning-bolt" size={24} color={colors.primaryForeground} />
                 </LinearGradient>
               </View>
             </View>
           </Animated.View>
 
-          {/* Stats Overlay */}
-          <View style={styles.statsOverlay}>
-            <View style={[styles.statPill, { backgroundColor: "rgba(30,21,46,0.9)", borderColor: colors.border }]}>
-              <Text style={[styles.statPillLabel, { color: colors.mutedForeground }]}>POT MULTIPLIER</Text>
-              <Text style={[styles.statPillValue, { color: colors.secondary }]}>x{multiplier}</Text>
-            </View>
-            <View>
-              <Text style={[styles.statusLabel, { color: colors.mutedForeground }]}>ROUND STATUS</Text>
-              <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: colors.secondary }]} />
-                <Text style={[styles.statusText, { color: colors.foreground }]}>
-                  {isPulling ? "FIRING..." : selectedChamber ? "READY" : "WAITING FOR ACTION"}
-                </Text>
-              </View>
-            </View>
+          {/* Status row */}
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: isPulling ? colors.tertiary : colors.secondary }]} />
+            <Text style={[styles.statusText, { color: colors.foreground }]}>
+              {isPulling ? "SPINNING..." : selectedChamber ? `CHAMBER ${selectedChamber} LOCKED` : "SELECT A CHAMBER"}
+            </Text>
           </View>
         </View>
 
-        {/* Result */}
+        {/* Result Banner */}
         {lastResult && (
-          <View
+          <Animated.View
             style={[
               styles.resultBanner,
               {
-                backgroundColor: lastResult.win ? "rgba(0,244,254,0.1)" : "rgba(255,110,132,0.1)",
+                backgroundColor: lastResult.win ? "rgba(0,244,254,0.08)" : "rgba(255,110,132,0.08)",
                 borderColor: lastResult.win ? colors.secondary : colors.destructive,
+                opacity: resultFlashAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
               },
             ]}
           >
             <MaterialCommunityIcons
               name={lastResult.win ? "shield-check" : "skull"}
-              size={22}
+              size={20}
               color={lastResult.win ? colors.secondary : colors.destructive}
             />
-            <Text
-              style={[
-                styles.resultText,
-                { color: lastResult.win ? colors.secondary : colors.destructive },
-              ]}
-            >
+            <Text style={[styles.resultText, { color: lastResult.win ? colors.secondary : colors.destructive }]}>
               {lastResult.msg}
             </Text>
-          </View>
+          </Animated.View>
         )}
 
-        {/* Bet Controls */}
-        <View
-          style={[
-            styles.betCard,
-            { backgroundColor: "rgba(30,21,46,0.7)", borderColor: colors.border },
-          ]}
-        >
-          <View style={styles.betHeader}>
-            <Text style={[styles.betLabel2, { color: colors.mutedForeground }]}>BET AMOUNT</Text>
-            <Text style={[styles.minText, { color: colors.primary }]}>Min: $10</Text>
-          </View>
+        {/* Bet Row */}
+        <View style={[styles.betCard, { backgroundColor: "rgba(30,21,46,0.7)", borderColor: colors.border }]}>
+          <Text style={[styles.betLabel, { color: colors.mutedForeground }]}>BET AMOUNT</Text>
           <View style={[styles.betInputRow, { backgroundColor: colors.input }]}>
             <TextInput
               value={betAmount}
@@ -304,87 +300,64 @@ export default function RouletteGameScreen() {
             />
             <TouchableOpacity
               style={[styles.halvBtn, { backgroundColor: colors.accent }]}
-              onPress={() => setBetAmount((parseFloat(betAmount) / 2).toFixed(2))}
+              onPress={() => setBetAmount((Math.max(10, parseFloat(betAmount) / 2)).toFixed(2))}
             >
-              <Text style={[styles.halvText, { color: colors.foreground }]}>1/2</Text>
+              <Text style={[styles.halvText, { color: colors.foreground }]}>½</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.halvBtn, { backgroundColor: colors.accent }]}
               onPress={() => setBetAmount((parseFloat(betAmount) * 2).toFixed(2))}
             >
-              <Text style={[styles.halvText, { color: colors.foreground }]}>2X</Text>
+              <Text style={[styles.halvText, { color: colors.foreground }]}>2×</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <TouchableOpacity onPress={pullTrigger} disabled={isPulling || !selectedChamber} activeOpacity={0.85}>
-          <LinearGradient
-            colors={isPulling || !selectedChamber ? [colors.surfaceBright, colors.surfaceBright] : [colors.primary, colors.primaryDim]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.pullBtn}
-          >
-            <View style={styles.pullBtnGloss} />
-            <Text style={[styles.pullBtnSub, { color: isPulling || !selectedChamber ? colors.mutedForeground : `${colors.primaryForeground}90` }]}>
-              EXECUTE SESSION
-            </Text>
-            <Text style={[styles.pullBtnText, { color: isPulling || !selectedChamber ? colors.mutedForeground : colors.primaryForeground }]}>
-              {isPulling ? "FIRING..." : selectedChamber ? `PULL TRIGGER` : "SELECT CHAMBER"}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* History */}
-        <View style={[styles.historyCard, { backgroundColor: "rgba(30,21,46,0.7)", borderColor: colors.border }]}>
-          <View style={styles.historyHeader}>
-            <MaterialCommunityIcons name="history" size={16} color={colors.secondary} />
-            <Text style={[styles.historyTitle, { color: colors.mutedForeground }]}>
-              RECENT OUTCOMES
-            </Text>
-          </View>
-          {HISTORY.map((item, i) => (
-            <View
-              key={i}
-              style={[
-                styles.historyItem,
-                i < HISTORY.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
-              ]}
+        {/* Pull trigger */}
+        <Animated.View style={{ transform: [{ scale: spinBtnAnim }] }}>
+          <TouchableOpacity onPress={pullTrigger} disabled={isPulling || !selectedChamber} activeOpacity={0.85}>
+            <LinearGradient
+              colors={isPulling || !selectedChamber ? [colors.surfaceBright, colors.surfaceBright] : [colors.primary, colors.primaryDim]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.pullBtn}
             >
-              <View
-                style={[
-                  styles.historyIconWrap,
-                  {
-                    backgroundColor: item.win ? "rgba(0,244,254,0.1)" : "rgba(255,110,132,0.1)",
-                    borderColor: item.win ? colors.secondary : colors.destructive,
-                  },
-                ]}
-              >
+              <View style={styles.pullBtnGloss} />
+              <Text style={[styles.pullBtnSub, { color: isPulling || !selectedChamber ? colors.mutedForeground : `${colors.primaryForeground}90` }]}>
+                {isPulling ? "SPINNING..." : "EXECUTE SESSION"}
+              </Text>
+              <Text style={[styles.pullBtnText, { color: isPulling || !selectedChamber ? colors.mutedForeground : colors.primaryForeground }]}>
+                {isPulling ? "FIRING..." : selectedChamber ? "PULL TRIGGER" : "SELECT CHAMBER"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Compact History */}
+        <View style={[styles.historyCard, { backgroundColor: "rgba(30,21,46,0.6)", borderColor: colors.border }]}>
+          <View style={styles.historyHeader}>
+            <MaterialCommunityIcons name="history" size={14} color={colors.secondary} />
+            <Text style={[styles.historyTitle, { color: colors.mutedForeground }]}>RECENT OUTCOMES</Text>
+          </View>
+          <View style={styles.historyItems}>
+            {RECENT_HISTORY.slice(0, 3).map((item, i) => (
+              <View key={i} style={styles.historyItem}>
                 <MaterialCommunityIcons
                   name={item.win ? "check-circle" : "close-circle"}
-                  size={16}
+                  size={14}
                   color={item.win ? colors.secondary : colors.destructive}
                 />
-              </View>
-              <View style={styles.historyMid}>
-                <Text style={[styles.historyUser, { color: colors.foreground }]}>
-                  Chamber {item.chamber}
-                </Text>
-                <Text style={[styles.historySubUser, { color: colors.mutedForeground }]}>
-                  {item.user}
-                </Text>
-              </View>
-              <View style={styles.historyRight}>
+                <Text style={[styles.historyChember, { color: colors.mutedForeground }]}>Ch.{item.chamber}</Text>
+                <Text style={[styles.historyUser, { color: colors.foreground }]}>{item.user}</Text>
                 <Text style={[styles.historyAmount, { color: item.win ? colors.secondary : colors.destructive }]}>
                   {item.amount}
                 </Text>
-                <Text style={[styles.historyTime, { color: colors.mutedForeground }]}>
-                  {item.time}
-                </Text>
+                <Text style={[styles.historyTime, { color: colors.mutedForeground }]}>{item.time}</Text>
               </View>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -392,12 +365,10 @@ export default function RouletteGameScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: {
-    paddingHorizontal: 16,
-    gap: 14,
+    flex: 1,
+    paddingHorizontal: 14,
     paddingTop: 8,
-  },
-  gameHeader: {
-    gap: 6,
+    gap: 10,
   },
   titleRow: {
     flexDirection: "row",
@@ -406,39 +377,38 @@ const styles = StyleSheet.create({
   },
   accentBar: {
     width: 4,
-    height: 40,
+    height: 44,
     borderRadius: 2,
     shadowColor: "#00f4fe",
     shadowOpacity: 0.8,
     shadowRadius: 8,
   },
   gameTitle: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: "900",
     fontStyle: "italic",
     letterSpacing: -0.5,
   },
   odds: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
-    marginLeft: 16,
+    marginTop: 2,
   },
   cylinderStage: {
-    borderRadius: 28,
+    borderRadius: 24,
     borderWidth: 1,
-    padding: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: "center",
     overflow: "hidden",
-    minHeight: 320,
-    justifyContent: "center",
-    gap: 20,
+    gap: 12,
   },
   bgGlow: {
     position: "absolute",
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    top: -50,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -40,
     alignSelf: "center",
   },
   cylinderContainer: {
@@ -457,31 +427,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#c59aff",
-    shadowOpacity: 0.15,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 0 },
   },
   chamber: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
   },
   chamberText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "900",
   },
   centerHub: {
     position: "absolute",
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -492,41 +458,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statsOverlay: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    width: "100%",
-  },
-  statPill: {
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-  },
-  statPillLabel: {
-    fontSize: 8,
-    fontWeight: "800",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 2,
-  },
-  statPillValue: {
-    fontSize: 22,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-  },
-  statusLabel: {
-    fontSize: 8,
-    fontWeight: "800",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 4,
-    textAlign: "right",
-  },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   statusDot: {
     width: 8,
@@ -536,52 +471,46 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: "800",
+    letterSpacing: 0.5,
   },
   resultBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 14,
-    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     borderWidth: 1,
   },
   resultText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "900",
     letterSpacing: -0.3,
   },
   betCard: {
-    borderRadius: 24,
+    borderRadius: 18,
     borderWidth: 1,
-    padding: 20,
-    gap: 14,
-  },
-  betHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  betLabel2: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 2,
-    textTransform: "uppercase",
-  },
-  minText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  betInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
   },
+  betLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  betInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 8,
+  },
   betInput: {
     flex: 1,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "900",
     letterSpacing: -0.5,
     padding: 0,
@@ -592,12 +521,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   halvText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   pullBtn: {
-    paddingVertical: 20,
-    borderRadius: 24,
+    paddingVertical: 16,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -609,7 +538,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.4)",
+    backgroundColor: "rgba(255,255,255,0.35)",
   },
   pullBtnSub: {
     fontSize: 9,
@@ -618,61 +547,54 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   pullBtnText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
     letterSpacing: -0.5,
     textTransform: "uppercase",
   },
   historyCard: {
-    borderRadius: 24,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 20,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
   },
   historyHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
+    gap: 6,
   },
   historyTitle: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "900",
     letterSpacing: 2,
     textTransform: "uppercase",
   },
+  historyItems: {
+    gap: 6,
+  },
   historyItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    gap: 12,
+    gap: 8,
   },
-  historyIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
+  historyChember: {
+    fontSize: 10,
+    fontWeight: "700",
+    width: 28,
   },
-  historyMid: { flex: 1 },
   historyUser: {
-    fontSize: 13,
+    flex: 1,
+    fontSize: 11,
     fontWeight: "700",
   },
-  historySubUser: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  historyRight: {
-    alignItems: "flex-end",
-  },
   historyAmount: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "900",
   },
   historyTime: {
-    fontSize: 10,
-    marginTop: 2,
+    fontSize: 9,
+    width: 40,
+    textAlign: "right",
   },
 });

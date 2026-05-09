@@ -18,12 +18,12 @@ import { GameHeader } from "@/components/GameHeader";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
 
-// ─── Matka Logic ────────────────────────────────────────────────────────────
+// ─── Lucky Pick Logic ────────────────────────────────────────────────────────────
 
 type BetType = "single" | "jodi" | "patti";
 type BetSide = "open" | "close";
 
-interface MatkaResult {
+interface LuckyPickResult {
   openDigits: number[];
   openAnk: number;
   openPatti: string;
@@ -40,7 +40,7 @@ interface HistoryEntry {
   amount: number;
   won: boolean;
   payout: number;
-  result: MatkaResult;
+  result: LuckyPickResult;
 }
 
 function drawSet(): { digits: number[]; ank: number; patti: string } {
@@ -55,7 +55,7 @@ function drawSet(): { digits: number[]; ank: number; patti: string } {
   return { digits: d, ank, patti };
 }
 
-function drawMatka(): MatkaResult {
+function drawLuckyPick(): LuckyPickResult {
   const open = drawSet();
   const close = drawSet();
   return {
@@ -85,7 +85,7 @@ function getPattisByAnk(ank: number): string[] {
 }
 
 function checkWin(
-  r: MatkaResult,
+  r: LuckyPickResult,
   betType: BetType,
   betSide: BetSide,
   pick: string
@@ -106,12 +106,12 @@ function checkWin(
   return { won: false, multiplier: 0 };
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Lucky Pick Component ───────────────────────────────────────────────────────────────
 
 const BET_AMOUNTS = [50, 100, 250, 500];
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-export default function MatkaScreen() {
+export default function LuckyPickScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const { balance, updateBalance, formatBalance } = useBalance();
@@ -127,7 +127,7 @@ export default function MatkaScreen() {
   const [betAmount, setBetAmount] = useState("100");
   const [isPlaying, setIsPlaying] = useState(false);
   const [phase, setPhase] = useState<"idle" | "open" | "close" | "done">("idle");
-  const [result, setResult] = useState<MatkaResult | null>(null);
+  const [result, setResult] = useState<LuckyPickResult | null>(null);
   const [lastWon, setLastWon] = useState<boolean | null>(null);
   const [lastPayout, setLastPayout] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -183,7 +183,7 @@ export default function MatkaScreen() {
 
     updateBalance(-amount);
 
-    const drawn = drawMatka();
+    const drawn = drawLuckyPick();
 
     // Phase 1: reveal open digits one by one
     setPhase("open");
@@ -253,7 +253,7 @@ export default function MatkaScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <GameHeader title="SATTA MATKA" showBack />
+      <GameHeader title="LUCKY PICK" showBack />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

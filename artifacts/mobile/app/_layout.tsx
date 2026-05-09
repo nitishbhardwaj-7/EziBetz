@@ -28,7 +28,7 @@ function RootLayoutNav() {
       <Stack.Screen name="games/slots" options={{ headerShown: false }} />
       <Stack.Screen name="games/roulette" options={{ headerShown: false }} />
       <Stack.Screen name="games/blackjack" options={{ headerShown: false }} />
-      <Stack.Screen name="games/matka" options={{ headerShown: false }} />
+      <Stack.Screen name="games/lucky-pick" options={{ headerShown: false }} />
     </Stack>
   );
 }
