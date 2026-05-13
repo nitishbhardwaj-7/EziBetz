@@ -1,9 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useGameSound } from "@/hooks/useGameSound";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
+  Animated,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -30,7 +32,15 @@ function dealCard(deck: Card[]): [Card, Card[]] {
   return [top, rest];
 }
 
-const BET_CHIPS = [10, 25, 50, 100, 250, 500];
+// Real casino chip denominations + colors
+const CHIPS = [
+  { value: 10,  bg: "#1a88f0", border: "#5ab4ff", label: "$10"  },
+  { value: 25,  bg: "#22c55e", border: "#86efac", label: "$25"  },
+  { value: 50,  bg: "#ef4444", border: "#fca5a5", label: "$50"  },
+  { value: 100, bg: "#1a1a1a", border: "#9ca3af", label: "$100" },
+  { value: 250, bg: "#a855f7", border: "#d8b4fe", label: "$250" },
+  { value: 500, bg: "#f59e0b", border: "#fde68a", label: "$500" },
+];
 
 export default function BlackjackGameScreen() {
   const insets = useSafeAreaInsets();
@@ -38,18 +48,28 @@ export default function BlackjackGameScreen() {
   const { balance, updateBalance, formatBalance } = useBalance();
   const { playDeal, playClick, playWin, playLose, playJackpot } = useGameSound();
 
-  const [bet, setBet] = useState(100);
+  const [bet, setBet] = useState(25);
   const [gameState, setGameState] = useState<GameState>("betting");
   const [deck, setDeck] = useState<Card[]>([]);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [winAmount, setWinAmount] = useState<number | null>(null);
+  const resultAnim = useRef(new Animated.Value(0)).current;
 
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
+  const showResult = useCallback((msg: string, win: boolean) => {
+    setResultMsg(msg);
+    resultAnim.setValue(0);
+    Animated.spring(resultAnim, { toValue: 1, friction: 7, tension: 300, useNativeDriver: true }).start();
+    if (win) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+    else { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); }
+  }, [resultAnim]);
+
+  // endGame receives the ACTUAL bet amount to avoid stale closure issues
   const endGame = useCallback(
-    (dealer: Card[], player: Card[], reason: string) => {
+    (dealer: Card[], player: Card[], actualBet: number, reason: string) => {
       const pv = handValue(player);
       const dv = handValue(dealer);
       const isBlackjack = reason === "blackjack";
@@ -57,29 +77,29 @@ export default function BlackjackGameScreen() {
       let payout = 0;
 
       if (pv > 21) {
-        msg = "BUST! YOU LOSE!"; payout = -bet;
+        msg = "BUST! YOU LOSE"; payout = 0;
       } else if (dv > 21) {
-        msg = "DEALER BUSTS! YOU WIN!"; payout = bet; updateBalance(bet * 2);
-      } else if (isBlackjack && pv === 21) {
-        msg = "BLACKJACK! 3:2!"; payout = Math.floor(bet * BLACKJACK_CONFIG.blackjackPayout);
-        updateBalance(bet + payout);
+        msg = "DEALER BUSTS — YOU WIN!"; payout = actualBet * 2; updateBalance(payout);
+      } else if (isBlackjack) {
+        msg = "BLACKJACK! 3:2 PAYOUT!";
+        payout = actualBet + Math.floor(actualBet * BLACKJACK_CONFIG.blackjackPayout);
+        updateBalance(payout);
       } else if (pv > dv) {
-        msg = "YOU WIN!"; payout = bet; updateBalance(bet * 2);
+        msg = "YOU WIN!"; payout = actualBet * 2; updateBalance(payout);
       } else if (pv === dv) {
-        msg = "PUSH — BET RETURNED"; payout = 0; updateBalance(bet);
+        msg = "PUSH — BET RETURNED"; payout = actualBet; updateBalance(payout);
       } else {
-        msg = "DEALER WINS!"; payout = -bet;
+        msg = "DEALER WINS"; payout = 0;
       }
 
-      setResultMsg(msg);
-      setWinAmount(payout);
+      setWinAmount(payout - actualBet);
       setGameState("result");
-
-      if (payout > bet) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); playJackpot(); }
-      else if (payout >= 0) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); playWin(); }
-      else { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); playLose(); }
+      showResult(msg, payout >= actualBet);
+      if (payout > actualBet * 1.4) playJackpot();
+      else if (payout >= actualBet) playWin();
+      else playLose();
     },
-    [bet, updateBalance, playJackpot, playWin, playLose]
+    [updateBalance, showResult, playJackpot, playWin, playLose]
   );
 
   const startGame = useCallback(() => {
@@ -100,25 +120,29 @@ export default function BlackjackGameScreen() {
     updateBalance(-bet);
     setGameState("playing");
 
-    if (handValue(player) === 21) endGame([c2, c4], player, "blackjack");
+    if (handValue(player) === 21) {
+      const fullDealer = [c2, c4];
+      setDealerHand(fullDealer);
+      endGame(fullDealer, player, bet, "blackjack");
+    }
   }, [bet, balance, updateBalance, playDeal, endGame]);
 
   const hit = useCallback(() => {
     if (gameState !== "playing") return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     playClick();
-    let d = [...deck];
-    let card: Card;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    let d = [...deck]; let card: Card;
     [card, d] = dealCard(d);
     const newHand = [...playerHand, card];
     setDeck(d); setPlayerHand(newHand);
     if (handValue(newHand) > 21) {
       const rev = dealerHand.map(c => ({ ...c, hidden: false }));
-      setDealerHand(rev); setGameState("result");
-      setResultMsg("BUST! YOU LOSE!"); setWinAmount(-bet);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); playLose();
+      setDealerHand(rev);
+      setWinAmount(-bet); setGameState("result");
+      showResult("BUST! YOU LOSE", false);
+      playLose();
     }
-  }, [gameState, deck, playerHand, dealerHand, bet, playClick, playLose]);
+  }, [gameState, deck, playerHand, dealerHand, bet, playClick, playLose, showResult]);
 
   const stand = useCallback(() => {
     if (gameState !== "playing") return;
@@ -129,365 +153,505 @@ export default function BlackjackGameScreen() {
       let card: Card; [card, d] = dealCard(d); rev = [...rev, card];
     }
     setDeck(d); setDealerHand(rev);
-    endGame(rev, playerHand, "stand");
-  }, [gameState, deck, dealerHand, playerHand, endGame]);
+    endGame(rev, playerHand, bet, "stand");
+  }, [gameState, deck, dealerHand, playerHand, bet, endGame]);
 
   const doubleDown = useCallback(() => {
     if (gameState !== "playing" || bet > balance) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const doubleBet = bet * 2;
+    updateBalance(-bet); // deduct additional bet
+    setBet(doubleBet);
     let d = [...deck]; let card: Card;
     [card, d] = dealCard(d);
     const newHand = [...playerHand, card];
-    updateBalance(-bet); setBet(b => b * 2);
     setDeck(d); setPlayerHand(newHand);
 
     if (handValue(newHand) > 21) {
       const rev = dealerHand.map(c => ({ ...c, hidden: false }));
-      setDealerHand(rev); setGameState("result");
-      setResultMsg("BUST! YOU LOSE!"); setWinAmount(-bet * 2);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); playLose();
+      setDealerHand(rev);
+      setWinAmount(-doubleBet); setGameState("result");
+      showResult("BUST! YOU LOSE", false);
+      playLose();
     } else {
       let rev = dealerHand.map(c => ({ ...c, hidden: false }));
       while (handValue(rev) < BLACKJACK_CONFIG.dealerStandsOn) {
         let c: Card; [c, d] = dealCard(d); rev = [...rev, c];
       }
       setDeck(d); setDealerHand(rev);
-      endGame(rev, newHand, "double");
+      endGame(rev, newHand, doubleBet, "double");
     }
-  }, [gameState, deck, playerHand, dealerHand, bet, balance, updateBalance, endGame, playLose]);
+  }, [gameState, deck, playerHand, dealerHand, bet, balance, updateBalance, endGame, showResult, playLose]);
 
   const resetGame = useCallback(() => {
     setGameState("betting"); setPlayerHand([]); setDealerHand([]);
     setResultMsg(null); setWinAmount(null);
-    if (bet > balance) setBet(Math.floor(balance / 10) * 10 || 10);
+    if (bet > balance) setBet(10);
   }, [bet, balance]);
 
   const playerVal = handValue(playerHand);
   const dealerVisible = handValue(dealerHand.filter(c => !c.hidden));
-  const isWin = (winAmount ?? 0) >= 0;
+  const isWin = (winAmount ?? -1) >= 0;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <GameHeader showBack title="Blackjack" />
 
-      <View style={[styles.content, { paddingBottom: bottomPad }]}>
-        {/* Ambient glows */}
-        <View style={[styles.ambientL, { backgroundColor: `${colors.primary}08` }]} pointerEvents="none" />
-        <View style={[styles.ambientR, { backgroundColor: `${colors.secondary}06` }]} pointerEvents="none" />
-
-        {/* Dealer */}
-        <View style={[styles.handSection, { backgroundColor: "rgba(30,21,46,0.6)", borderColor: colors.border }]}>
-          <View style={styles.handHeader}>
-            <Text style={[styles.handLabel, { color: colors.mutedForeground }]}>DEALER</Text>
-            <View style={[styles.scorePill, { backgroundColor: `${colors.secondary}18`, borderColor: `${colors.secondary}40` }]}>
-              <Text style={[styles.scoreText, { color: colors.secondary }]}>
-                {gameState === "betting" ? "--" : dealerVisible}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.cardRow}>
-            {gameState === "betting" ? (
-              <View style={[styles.emptySlot, { borderColor: colors.border }]}>
-                <MaterialCommunityIcons name="cards" size={22} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
-              </View>
-            ) : dealerHand.map((card, i) => (
-              <PlayingCard key={i} card={card} width={58} height={88} />
-            ))}
-          </View>
-        </View>
-
-        {/* Bet Strip */}
-        <View style={[styles.betStrip, { backgroundColor: "rgba(17,10,30,0.8)", borderColor: `${colors.primary}30` }]}>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: bottomPad }}
+      >
+        {/* ── FELT TABLE ── */}
+        <View style={styles.feltTable}>
           <LinearGradient
-            colors={[`${colors.primary}12`, "transparent"]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            colors={["#0d5c35", "#0a4a2a", "#083d22"]}
             style={StyleSheet.absoluteFill}
           />
-          <MaterialCommunityIcons name="poker-chip" size={18} color={colors.primary} />
-          <Text style={[styles.betStripLabel, { color: colors.mutedForeground }]}>CURRENT BET</Text>
-          <Text style={[styles.betStripAmount, { color: colors.primary }]}>{formatBalance(bet)}</Text>
-          {gameState !== "betting" && resultMsg === null && (
-            <>
-              <View style={[styles.betDivider, { backgroundColor: colors.border }]} />
-              <MaterialCommunityIcons name="star-four-points" size={12} color={colors.secondary} />
-              <Text style={[styles.potText, { color: colors.secondary }]}>POT {formatBalance(bet * 2)}</Text>
-            </>
-          )}
-        </View>
+          {/* Gold arc line */}
+          <View style={styles.goldArc} />
+          {/* Table inscription */}
+          <Text style={styles.tableText}>BLACKJACK PAYS 3 TO 2</Text>
+          <Text style={styles.tableTextSub}>INSURANCE PAYS 2 TO 1</Text>
 
-        {/* Player */}
-        <View style={[styles.handSection, { backgroundColor: "rgba(30,21,46,0.6)", borderColor: colors.border }]}>
-          <View style={styles.handHeader}>
-            <Text style={[styles.handLabel, { color: colors.foreground }]}>YOU</Text>
-            <View style={[styles.scorePill, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}40` }]}>
-              <Text style={[styles.scoreText, { color: colors.primary }]}>
-                {gameState === "betting" ? "--" : playerVal}
-              </Text>
+          {/* Dealer zone */}
+          <View style={styles.dealerZone}>
+            <View style={styles.handLabelRow}>
+              <Text style={styles.feltLabel}>DEALER</Text>
+              <View style={[styles.scoreBubble, { borderColor: gameState !== "betting" ? "#ffd700" : "#ffffff30" }]}>
+                <Text style={[styles.scoreBubbleText, { color: gameState !== "betting" ? "#ffd700" : "#ffffff50" }]}>
+                  {gameState === "betting" ? "—" : dealerVisible}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.cardRow}>
+              {gameState === "betting" ? (
+                <>
+                  <View style={[styles.emptyCardSlot, { borderColor: "#ffffff18" }]} />
+                  <View style={[styles.emptyCardSlot, { borderColor: "#ffffff18" }]} />
+                </>
+              ) : (
+                dealerHand.map((card, i) => (
+                  <View key={i} style={styles.cardShadowWrap}>
+                    <PlayingCard card={card} width={60} height={90} />
+                  </View>
+                ))
+              )}
             </View>
           </View>
-          <View style={styles.cardRow}>
-            {gameState === "betting" ? (
-              <View style={[styles.emptySlot, { borderColor: colors.border }]}>
-                <MaterialCommunityIcons name="cards" size={22} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
-              </View>
-            ) : playerHand.map((card, i) => (
-              <PlayingCard key={i} card={card} width={58} height={88} />
-            ))}
-          </View>
-        </View>
 
-        {/* Result */}
-        {resultMsg && (
-          <View style={[styles.resultBanner, {
-            backgroundColor: isWin ? "rgba(0,244,254,0.08)" : "rgba(255,110,132,0.08)",
-            borderColor: isWin ? colors.secondary : colors.destructive,
-          }]}>
-            <MaterialCommunityIcons
-              name={isWin ? "trophy" : "close-circle"}
-              size={20}
-              color={isWin ? colors.secondary : colors.destructive}
-            />
-            <Text style={[styles.resultText, { color: isWin ? colors.secondary : colors.destructive }]}>
-              {resultMsg}
+          {/* Centre bet zone */}
+          <View style={styles.betZone}>
+            <View style={styles.betCircle}>
+              {gameState === "betting" ? (
+                <Text style={styles.betCircleLabel}>BET HERE</Text>
+              ) : (
+                <View style={styles.chipStack}>
+                  {CHIPS.filter(c => c.value <= bet).slice(-2).map((chip, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.stackedChip,
+                        {
+                          backgroundColor: chip.bg,
+                          borderColor: chip.border,
+                          marginLeft: i > 0 ? -8 : 0,
+                          zIndex: i,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.stackedChipText}>{chip.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+            <Text style={styles.betAmountLabel}>
+              BET: <Text style={{ color: "#ffd700", fontWeight: "900" }}>{formatBalance(bet)}</Text>
             </Text>
-            {(winAmount ?? 0) > 0 && (
-              <Text style={[styles.resultPayout, { color: colors.secondary }]}>
-                +{formatBalance(winAmount!)}
+            {gameState === "playing" && (
+              <Text style={styles.potLabel}>
+                WIN: <Text style={{ color: "#86efac" }}>{formatBalance(bet * 2)}</Text>
               </Text>
             )}
           </View>
+
+          {/* Player zone */}
+          <View style={styles.playerZone}>
+            <View style={styles.handLabelRow}>
+              <Text style={styles.feltLabel}>YOUR HAND</Text>
+              <View style={[styles.scoreBubble, { borderColor: gameState !== "betting" ? "#c59aff" : "#ffffff30" }]}>
+                <Text style={[styles.scoreBubbleText, {
+                  color: gameState !== "betting"
+                    ? (playerVal > 21 ? "#ff6e84" : "#c59aff")
+                    : "#ffffff50",
+                }]}>
+                  {gameState === "betting" ? "—" : playerVal}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.cardRow}>
+              {gameState === "betting" ? (
+                <>
+                  <View style={[styles.emptyCardSlot, { borderColor: "#ffffff18" }]} />
+                  <View style={[styles.emptyCardSlot, { borderColor: "#ffffff18" }]} />
+                </>
+              ) : (
+                playerHand.map((card, i) => (
+                  <View key={i} style={styles.cardShadowWrap}>
+                    <PlayingCard card={card} width={60} height={90} />
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* ── RESULT BANNER ── */}
+        {resultMsg && (
+          <Animated.View
+            style={[
+              styles.resultBanner,
+              {
+                backgroundColor: isWin ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                borderColor: isWin ? "#22c55e" : "#ef4444",
+                opacity: resultAnim,
+                transform: [{ scale: resultAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={isWin ? "trophy" : "close-circle"}
+              size={22}
+              color={isWin ? "#22c55e" : "#ef4444"}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.resultMsg, { color: isWin ? "#22c55e" : "#ef4444" }]}>
+                {resultMsg}
+              </Text>
+              {winAmount !== null && winAmount !== 0 && (
+                <Text style={[styles.resultPayout, { color: winAmount > 0 ? "#86efac" : "#fca5a5" }]}>
+                  {winAmount > 0 ? `+${formatBalance(winAmount)}` : `-${formatBalance(Math.abs(winAmount))}`}
+                </Text>
+              )}
+            </View>
+          </Animated.View>
         )}
 
-        {/* Controls */}
-        {gameState === "betting" && (
-          <View style={styles.bettingControls}>
-            <View style={styles.chipGrid}>
-              {BET_CHIPS.map((amt) => {
-                const active = bet === amt;
-                return (
-                  <PressableScale
-                    key={amt}
-                    onPress={() => setBet(amt)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? `${colors.primary}25` : colors.accent,
-                        borderColor: active ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.chipText, { color: active ? colors.primary : colors.foreground }]}>
-                      ${amt}
-                    </Text>
-                  </PressableScale>
-                );
-              })}
+        {/* ── CONTROLS ── */}
+        <View style={[styles.controls, { backgroundColor: colors.surfaceContainerLow }]}>
+          {gameState === "betting" && (
+            <>
+              <Text style={[styles.controlLabel, { color: colors.mutedForeground }]}>SELECT CHIP</Text>
+              <View style={styles.chipRow}>
+                {CHIPS.map((chip) => {
+                  const active = bet === chip.value;
+                  return (
+                    <PressableScale
+                      key={chip.value}
+                      onPress={() => setBet(chip.value)}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: active ? chip.bg : colors.accent,
+                          borderColor: active ? chip.border : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.chipText, { color: active ? "#fff" : colors.mutedForeground }]}>
+                        {chip.label}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+              <PressableScale onPress={startGame} disabled={bet > balance} scale={0.96}>
+                <LinearGradient
+                  colors={bet > balance ? [colors.surfaceBright, colors.surfaceBright] : ["#9547f7", "#c59aff"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.mainBtn}
+                >
+                  <View style={styles.btnGloss} />
+                  <MaterialCommunityIcons name="cards" size={20} color={bet > balance ? colors.mutedForeground : "#fff"} />
+                  <Text style={[styles.mainBtnText, { color: bet > balance ? colors.mutedForeground : "#fff" }]}>
+                    DEAL CARDS
+                  </Text>
+                </LinearGradient>
+              </PressableScale>
+            </>
+          )}
+
+          {gameState === "playing" && (
+            <View style={styles.actionBar}>
+              <PressableScale
+                onPress={doubleDown}
+                disabled={bet > balance}
+                style={[styles.actionBtn, { borderColor: `${colors.primary}40`, borderWidth: 1.5, flex: 1 }]}
+              >
+                <Text style={[styles.actionSub, { color: colors.mutedForeground }]}>Double</Text>
+                <Text style={[styles.actionMain, { color: colors.foreground }]}>×2</Text>
+              </PressableScale>
+
+              <PressableScale
+                onPress={stand}
+                style={[styles.actionBtn, { borderColor: "#ef4444", borderWidth: 1.5, flex: 1 }]}
+              >
+                <Text style={[styles.actionSub, { color: colors.mutedForeground }]}>Stop</Text>
+                <Text style={[styles.actionMain, { color: "#ef4444" }]}>STAND</Text>
+              </PressableScale>
+
+              <PressableScale onPress={hit} scale={0.95} containerStyle={{ flex: 1.5 }}>
+                <LinearGradient
+                  colors={["#22c55e", "#16a34a"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.hitBtn}
+                >
+                  <Text style={[styles.actionMain, { color: "#fff", fontSize: 18 }]}>HIT</Text>
+                  <MaterialCommunityIcons name="cards-playing" size={18} color="#fff" />
+                </LinearGradient>
+              </PressableScale>
             </View>
-            <PressableScale onPress={startGame} disabled={bet > balance} scale={0.96}>
+          )}
+
+          {gameState === "result" && (
+            <PressableScale onPress={resetGame} scale={0.96}>
               <LinearGradient
-                colors={bet > balance ? [colors.surfaceBright, colors.surfaceBright] : ["#9547f7", "#c59aff"]}
+                colors={["#9547f7", "#c59aff"]}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={styles.mainBtn}
               >
                 <View style={styles.btnGloss} />
-                <MaterialCommunityIcons name="cards" size={20} color={bet > balance ? colors.mutedForeground : "#fff"} />
-                <Text style={[styles.mainBtnText, { color: bet > balance ? colors.mutedForeground : "#fff" }]}>
-                  DEAL CARDS
-                </Text>
+                <MaterialCommunityIcons name="refresh" size={20} color="#fff" />
+                <Text style={[styles.mainBtnText, { color: "#fff" }]}>PLAY AGAIN</Text>
               </LinearGradient>
             </PressableScale>
-          </View>
-        )}
-
-        {gameState === "playing" && (
-          <View style={[styles.actionBar, { backgroundColor: "rgba(30,21,46,0.9)", borderColor: colors.border }]}>
-            <PressableScale
-              onPress={doubleDown}
-              disabled={bet > balance}
-              style={[styles.actionOutline, { borderColor: `${colors.primary}40`, flex: 1 }]}
-            >
-              <Text style={[styles.actionSub, { color: colors.mutedForeground }]}>Double</Text>
-              <Text style={[styles.actionMain, { color: colors.foreground }]}>×2</Text>
-            </PressableScale>
-
-            <PressableScale
-              onPress={stand}
-              style={[styles.actionOutline, { borderColor: `${colors.primaryDim}50`, borderWidth: 2, flex: 1.2 }]}
-            >
-              <Text style={[styles.actionMain, { color: colors.foreground, fontSize: 15 }]}>STAND</Text>
-            </PressableScale>
-
-            <PressableScale onPress={hit} scale={0.95} containerStyle={{ flex: 1.8 }}>
-              <LinearGradient
-                colors={["#9547f7", "#c59aff"]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={styles.hitBtn}
-              >
-                <Text style={[styles.actionMain, { color: "#fff", fontSize: 18 }]}>HIT</Text>
-                <MaterialCommunityIcons name="lightning-bolt" size={16} color="#fff" />
-              </LinearGradient>
-            </PressableScale>
-          </View>
-        )}
-
-        {gameState === "result" && (
-          <PressableScale onPress={resetGame} scale={0.96}>
-            <LinearGradient
-              colors={["#9547f7", "#c59aff"]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.mainBtn}
-            >
-              <View style={styles.btnGloss} />
-              <MaterialCommunityIcons name="refresh" size={20} color="#fff" />
-              <Text style={[styles.mainBtnText, { color: "#fff" }]}>PLAY AGAIN</Text>
-            </LinearGradient>
-          </PressableScale>
-        )}
-      </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    gap: 10,
+
+  // ── Felt Table ──
+  feltTable: {
+    marginHorizontal: 12,
+    marginTop: 10,
+    borderRadius: 24,
+    overflow: "hidden",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    gap: 0,
+    borderWidth: 2,
+    borderColor: "#ffd70035",
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
   },
-  ambientL: {
+  goldArc: {
     position: "absolute",
-    left: -60,
-    top: 80,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    left: 20,
+    right: 20,
+    top: "38%",
+    height: 2,
+    backgroundColor: "#ffd70025",
+    borderRadius: 1,
   },
-  ambientR: {
-    position: "absolute",
-    right: -60,
-    bottom: 120,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+  tableText: {
+    textAlign: "center",
+    color: "#ffd70055",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    marginBottom: 12,
   },
-  handSection: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 12,
-    gap: 10,
+  tableTextSub: {
+    textAlign: "center",
+    color: "#ffffff20",
+    fontSize: 8,
+    fontWeight: "700",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginTop: -10,
+    marginBottom: 12,
   },
-  handHeader: {
+  dealerZone: {
+    gap: 8,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ffd70020",
+  },
+  playerZone: {
+    gap: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#ffd70020",
+  },
+  handLabelRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  handLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 2,
+  feltLabel: {
+    color: "#ffffff60",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 3,
     textTransform: "uppercase",
   },
-  scorePill: {
+  scoreBubble: {
     paddingHorizontal: 14,
     paddingVertical: 4,
     borderRadius: 9999,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
-  scoreText: {
+  scoreBubbleText: {
     fontSize: 16,
     fontWeight: "900",
-    letterSpacing: -0.5,
   },
   cardRow: {
     flexDirection: "row",
     gap: 8,
-    minHeight: 88,
+    minHeight: 90,
     alignItems: "center",
   },
-  emptySlot: {
-    width: 58,
-    height: 88,
+  cardShadowWrap: {
+    shadowColor: "#000",
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
+  },
+  emptyCardSlot: {
+    width: 60,
+    height: 90,
     borderRadius: 8,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+  },
+
+  // ── Bet Zone ──
+  betZone: {
+    alignItems: "center",
+    paddingVertical: 14,
+    gap: 6,
+  },
+  betCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 2,
+    borderColor: "#ffd70040",
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
   },
-  betStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  betStripLabel: {
+  betCircleLabel: {
+    color: "#ffffff30",
     fontSize: 9,
     fontWeight: "800",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
+    letterSpacing: 1,
+    textAlign: "center",
   },
-  betStripAmount: {
-    fontSize: 16,
+  chipStack: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  stackedChip: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  stackedChipText: {
+    color: "#fff",
+    fontSize: 8,
     fontWeight: "900",
-    letterSpacing: -0.5,
   },
-  betDivider: {
-    width: 1,
-    height: 16,
-    marginHorizontal: 4,
-  },
-  potText: {
+  betAmountLabel: {
+    color: "#ffffff80",
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
+  potLabel: {
+    color: "#ffffff50",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
+  // ── Result ──
   resultBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    gap: 12,
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     borderWidth: 1,
   },
-  resultText: {
-    flex: 1,
-    fontSize: 15,
+  resultMsg: {
+    fontSize: 16,
     fontWeight: "900",
     letterSpacing: -0.3,
   },
   resultPayout: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+
+  // ── Controls ──
+  controls: {
+    margin: 12,
+    borderRadius: 20,
+    padding: 16,
+    gap: 14,
+  },
+  controlLabel: {
+    fontSize: 9,
     fontWeight: "900",
+    letterSpacing: 2,
+    textTransform: "uppercase",
   },
-  bettingControls: {
-    gap: 10,
-  },
-  chipGrid: {
+  chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1.5,
+    minWidth: 60,
+    alignItems: "center",
   },
   chipText: {
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "900",
   },
   mainBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    paddingVertical: 15,
+    paddingVertical: 16,
     borderRadius: 9999,
     overflow: "hidden",
     position: "relative",
@@ -512,16 +676,13 @@ const styles = StyleSheet.create({
   actionBar: {
     flexDirection: "row",
     gap: 8,
-    padding: 10,
-    borderRadius: 9999,
-    borderWidth: 1,
   },
-  actionOutline: {
-    paddingVertical: 12,
-    borderRadius: 9999,
-    borderWidth: 1,
+  actionBtn: {
+    paddingVertical: 14,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    gap: 2,
   },
   actionSub: {
     fontSize: 8,
@@ -530,7 +691,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   actionMain: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "900",
     letterSpacing: -0.3,
   },
@@ -540,10 +701,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 12,
-    borderRadius: 9999,
-    shadowColor: "#9547f7",
-    shadowOpacity: 0.4,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: "#22c55e",
+    shadowOpacity: 0.5,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 3 },
     elevation: 6,
