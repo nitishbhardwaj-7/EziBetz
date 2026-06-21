@@ -18,4 +18,12 @@ config.resolver.extraNodeModules = {
   fontfaceobserver: path.resolve(projectRoot, "fontfaceobserver-mock.js"),
 };
 
+// Block Metro from watching ephemeral temp dirs created by Replit skills.
+// These get deleted mid-session which crashes the FallbackWatcher.
+// Use raw RegExp — metro-config/src/defaults/exclusionList is not exported
+// in this version of metro-config.
+config.resolver.blockList = [
+  /[/\\]\.local[/\\]skills[/\\]\.tmp-[^/\\]*/,
+];
+
 module.exports = config;

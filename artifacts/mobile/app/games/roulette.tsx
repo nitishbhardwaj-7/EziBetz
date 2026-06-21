@@ -1,600 +1,896 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useGameSound } from "@/hooks/useGameSound";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Animated,
   Easing,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { GameHeader } from "@/components/GameHeader";
+import { PressableScale } from "@/components/PressableScale";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
-import { ROULETTE_CONFIG } from "@/constants/gameConfig";
 
-const CHAMBER_POSITIONS = [
-  { angle: 90,  label: "1" },
-  { angle: 30,  label: "2" },
-  { angle: 330, label: "3" },
-  { angle: 270, label: "4" },
-  { angle: 210, label: "5" },
-  { angle: 150, label: "6" },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const RED_NUMS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+
+// European wheel order (clockwise from top)
+const WHEEL_ORDER = [
+  0,32,15,19,4,21,2,25,17,34,6,27,13,36,
+  11,30,8,23,10,5,24,16,33,1,20,14,31,9,
+  22,18,29,7,28,12,35,3,26,
 ];
 
-const RECENT_HISTORY = [
-  { chamber: 4, win: true,  user: "User_9921",  amount: "+$420.00",   time: "2m ago" },
-  { chamber: 1, win: false, user: "BetMaster",  amount: "-$100.00",   time: "5m ago" },
-  { chamber: 3, win: true,  user: "Player_X",   amount: "+$1,150.00", time: "8m ago" },
+function getColor(n: number): "red" | "black" | "green" {
+  if (n === 0) return "green";
+  return RED_NUMS.has(n) ? "red" : "black";
+}
+
+const NUM_COLOR_BG: Record<string, string> = {
+  red:   "#991b1b",
+  black: "#111827",
+  green: "#15803d",
+};
+
+const NUM_COLOR_BRIGHT: Record<string, string> = {
+  red:   "#ef4444",
+  black: "#6b7280",
+  green: "#22c55e",
+};
+
+// ─── Bet types ────────────────────────────────────────────────────────────────
+
+type BetType = "straight" | "color" | "parity" | "range" | "dozen";
+
+interface Bet { type: BetType; value: string }
+
+function evaluateBet(bet: Bet, result: number): { win: boolean; multiplier: number } {
+  const { type, value } = bet;
+  switch (type) {
+    case "straight":
+      return { win: result === Number(value), multiplier: 36 };   // 35:1
+    case "color":
+      return { win: result !== 0 && getColor(result) === value, multiplier: 2 }; // 1:1
+    case "parity":
+      if (result === 0) return { win: false, multiplier: 0 };
+      return { win: (result % 2 === 0) === (value === "even"), multiplier: 2 };
+    case "range":
+      if (result === 0) return { win: false, multiplier: 0 };
+      return { win: value === "low" ? result <= 18 : result >= 19, multiplier: 2 };
+    case "dozen":
+      if (result === 0) return { win: false, multiplier: 0 };
+      const dz = result <= 12 ? "1st" : result <= 24 ? "2nd" : "3rd";
+      return { win: dz === value, multiplier: 3 };                // 2:1
+    default:
+      return { win: false, multiplier: 0 };
+  }
+}
+
+// ─── Board layout helpers ─────────────────────────────────────────────────────
+
+// Standard 3-row × 12-col European layout
+// Row 0 (top): 3,6,9,…,36  Row 1 (mid): 2,5,8,…,35  Row 2 (bot): 1,4,7,…,34
+const GRID_ROWS: number[][] = [
+  Array.from({length:12}, (_,c) => c*3+3),
+  Array.from({length:12}, (_,c) => c*3+2),
+  Array.from({length:12}, (_,c) => c*3+1),
 ];
+
+// ─── Wheel sizing ─────────────────────────────────────────────────────────────
+const WHEEL_D    = 230;
+const CENTER     = WHEEL_D / 2;
+const RING_R     = 90;
+const POCKET_SZ  = 22;
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function RouletteGameScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const { balance, updateBalance, formatBalance } = useBalance();
-  const { playRoll, playWin, playLose } = useGameSound();
+  const { playSpin, playWin, playLose, playClick, playDeal } = useGameSound();
 
-  const [betAmount, setBetAmount] = useState("100.00");
-  const [selectedChamber, setSelectedChamber] = useState<number | null>(null);
-  const [isPulling, setIsPulling] = useState(false);
-  const [lastResult, setLastResult] = useState<{
-    win: boolean; chamber: number; msg: string;
+  const [selectedBet, setSelectedBet] = useState<Bet | null>(null);
+  const [betIdx, setBetIdx]           = useState(1); // index into BET_CHIPS
+  const [isSpinning, setIsSpinning]   = useState(false);
+  const [result, setResult]           = useState<{
+    number: number; win: boolean; netGain: number; msg: string;
   } | null>(null);
+  const [history, setHistory] = useState<Array<{n: number; color: string}>>([]);
 
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const resultFlashAnim = useRef(new Animated.Value(0)).current;
-  const spinBtnAnim = useRef(new Animated.Value(1)).current;
-  // Track cumulative rotation so each spin continues from previous angle
-  const cumulativeRotation = useRef(0);
+  const rotateAnim      = useRef(new Animated.Value(0)).current;
+  const resultAnim      = useRef(new Animated.Value(0)).current;
+  const cumulativeRot   = useRef(0);
 
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
-  const parsedBet = parseFloat(betAmount) || 0;
-  const { multiplier } = ROULETTE_CONFIG;
 
-  const CYLINDER_SIZE = 240;
-  const CENTER = CYLINDER_SIZE / 2;
-  const CHAMBER_RADIUS = 82;
+  const BET_CHIPS = [10, 25, 50, 100, 250, 500];
+  const betAmount = BET_CHIPS[betIdx];
 
-  const pullTrigger = () => {
-    if (isPulling || selectedChamber === null || parsedBet <= 0 || parsedBet > balance) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    playRoll();
-    setIsPulling(true);
-    setLastResult(null);
-
-    // Button press effect
-    Animated.sequence([
-      Animated.timing(spinBtnAnim, { toValue: 0.94, duration: 80, useNativeDriver: true }),
-      Animated.timing(spinBtnAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
-
-    // Physics-based multi-rotation
-    const extraRotations =
-      ROULETTE_CONFIG.totalSpinRotations.min +
-      Math.random() * (ROULETTE_CONFIG.totalSpinRotations.max - ROULETTE_CONFIG.totalSpinRotations.min);
-    const landingFraction = Math.random(); // random fraction of one rotation
-    const totalDegrees = extraRotations * 360 + landingFraction * 360;
-
-    const startValue = cumulativeRotation.current;
-    const endValue = startValue + totalDegrees;
-    cumulativeRotation.current = endValue;
-
-    rotateAnim.setValue(startValue);
-
-    Animated.timing(rotateAnim, {
-      toValue: endValue,
-      duration: ROULETTE_CONFIG.spinDuration,
-      easing: Easing.out(Easing.exp),
-      useNativeDriver: true,
-    }).start(() => {
-      // Determine result
-      const firingChamber = Math.floor(Math.random() * 6) + 1;
-      const isBullet = firingChamber === selectedChamber;
-
-      if (!isBullet) {
-        const winAmount = parsedBet * multiplier;
-        updateBalance(winAmount - parsedBet);
-        setLastResult({
-          win: true,
-          chamber: firingChamber,
-          msg: `SURVIVED! +${formatBalance(winAmount - parsedBet)}`,
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        playWin();
-      } else {
-        updateBalance(-parsedBet);
-        setLastResult({
-          win: false,
-          chamber: firingChamber,
-          msg: `ELIMINATED! -${formatBalance(parsedBet)}`,
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        playLose();
-      }
-
-      // Flash result
-      Animated.sequence([
-        Animated.timing(resultFlashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(resultFlashAnim, { toValue: 0.7, duration: 200, useNativeDriver: true }),
-        Animated.timing(resultFlashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]).start();
-
-      setIsPulling(false);
-    });
-  };
-
+  // ── rotateDeg interpolation (linear extension) ─────────────────────────────
   const rotateDeg = rotateAnim.interpolate({
-    inputRange: [cumulativeRotation.current - 3600, cumulativeRotation.current + 3600],
-    outputRange: ["-3600deg", "3600deg"],
+    inputRange: [0, 360],
+    outputRange: ["0deg", "360deg"],
     extrapolate: "extend",
   });
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  const isSelected = (type: BetType, value: string) =>
+    selectedBet?.type === type && selectedBet.value === value;
+
+  const selectBet = useCallback((type: BetType, value: string) => {
+    if (isSpinning) return;
+    playClick();
+    Haptics.selectionAsync();
+    setSelectedBet(prev =>
+      prev?.type === type && prev.value === value ? null : { type, value }
+    );
+  }, [isSpinning, playClick]);
+
+  // ── Spin ───────────────────────────────────────────────────────────────────
+
+  const spin = useCallback(() => {
+    if (!selectedBet || isSpinning || betAmount > balance) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    playSpin();
+    setIsSpinning(true);
+    setResult(null);
+    updateBalance(-betAmount);
+
+    // Pick result
+    const resultNum = Math.floor(Math.random() * 37); // 0–36
+    const wi = WHEEL_ORDER.indexOf(resultNum);         // pocket index on wheel
+
+    // Rotation to bring pocket wi to top (0°):
+    // pocket wi is at wi*(360/37)° from top in wheel frame
+    // rotating clockwise by θ = n*360 − wi*(360/37) lands it at top
+    const n = 5 + Math.floor(Math.random() * 4);
+    const toAdd = n * 360 - wi * (360 / 37);
+
+    const startVal = cumulativeRot.current;
+    const endVal   = startVal + toAdd;
+    cumulativeRot.current = endVal;
+
+    rotateAnim.setValue(startVal);
+    Animated.timing(rotateAnim, {
+      toValue: endVal,
+      duration: 3200 + Math.random() * 800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      const { win, multiplier } = evaluateBet(selectedBet, resultNum);
+      const netGain = win ? betAmount * multiplier - betAmount : 0;
+
+      if (win) {
+        updateBalance(betAmount * multiplier);
+        playWin();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        playLose();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+
+      // Animate result banner
+      resultAnim.setValue(0);
+      Animated.spring(resultAnim, {
+        toValue: 1, friction: 7, tension: 300, useNativeDriver: true,
+      }).start();
+
+      const numColor = getColor(resultNum);
+      setResult({
+        number: resultNum, win,
+        netGain: win ? netGain : -betAmount,
+        msg: win
+          ? `${resultNum} (${numColor.toUpperCase()}) — +${formatBalance(netGain)}`
+          : `${resultNum} (${numColor.toUpperCase()}) — Better luck next time`,
+      });
+      setHistory(h => [{n: resultNum, color: numColor}, ...h].slice(0, 14));
+      setIsSpinning(false);
+    });
+  }, [selectedBet, isSpinning, betAmount, balance, updateBalance,
+      playSpin, playWin, playLose, playClick, rotateAnim, resultAnim, formatBalance]);
+
+  // ── Bet label helper ───────────────────────────────────────────────────────
+  const betLabel = (() => {
+    if (!selectedBet) return "NO BET SELECTED";
+    const { type, value } = selectedBet;
+    if (type === "straight") return `STRAIGHT — ${value}`;
+    if (type === "color") return `COLOR — ${value.toUpperCase()}`;
+    if (type === "parity") return value.toUpperCase();
+    if (type === "range") return value === "low" ? "LOW (1–18)" : "HIGH (19–36)";
+    if (type === "dozen") return `${value.toUpperCase()} DOZEN`;
+    return value;
+  })();
+
+  const canSpin = !!selectedBet && !isSpinning && betAmount <= balance;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <GameHeader showBack title="Roulette" />
 
-      <View style={[styles.content, { paddingBottom: bottomPad }]}>
-        {/* Title row */}
-        <View style={styles.titleRow}>
-          <View style={[styles.accentBar, { backgroundColor: colors.secondary }]} />
-          <View>
-            <Text style={[styles.gameTitle, { color: colors.foreground }]}>
-              NEON <Text style={{ color: colors.primary }}>ROULETTE</Text>
-            </Text>
-            <Text style={[styles.odds, { color: colors.mutedForeground }]}>
-              CHAMBER ODDS:{" "}
-              <Text style={{ color: colors.secondary, fontWeight: "800" }}>16.6%</Text>
-              {"  "}WIN MULTIPLIER:{" "}
-              <Text style={{ color: colors.tertiary, fontWeight: "800" }}>×{multiplier}</Text>
-            </Text>
-          </View>
-        </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
 
-        {/* Cylinder Stage */}
-        <View
-          style={[
-            styles.cylinderStage,
-            { backgroundColor: "rgba(30,21,46,0.7)", borderColor: colors.border },
-          ]}
-        >
-          <View style={[styles.bgGlow, { backgroundColor: `${colors.primary}14` }]} />
+        {/* ── WHEEL ─────────────────────────────────────────────────────── */}
+        <View style={styles.wheelSection}>
+          <View style={[styles.wheelOuter, { borderColor: "#ffd70060" }]}>
+            {/* Ball marker (fixed top) */}
+            <View style={styles.ballMarker} />
 
-          <Animated.View
-            style={[
-              styles.cylinderContainer,
-              {
-                width: CYLINDER_SIZE,
-                height: CYLINDER_SIZE,
-                transform: [{ rotate: rotateDeg }],
-              },
-            ]}
-          >
-            {/* Outer dashed ring */}
-            <View
-              style={[
-                styles.outerRing,
-                { width: CYLINDER_SIZE, height: CYLINDER_SIZE, borderRadius: CYLINDER_SIZE / 2, borderColor: `${colors.primary}25` },
-              ]}
-            />
-            {/* Inner disc */}
-            <View
-              style={[
-                styles.innerCircle,
-                {
-                  width: CYLINDER_SIZE - 28,
-                  height: CYLINDER_SIZE - 28,
-                  borderRadius: (CYLINDER_SIZE - 28) / 2,
-                  backgroundColor: colors.accent,
-                  borderColor: colors.border,
-                },
-              ]}
+            {/* Rotating wheel */}
+            <Animated.View
+              style={[styles.wheelInner, { transform: [{ rotate: rotateDeg }] }]}
             >
-              {CHAMBER_POSITIONS.map((pos, i) => {
-                const chamberNum = i + 1;
-                const rad = (pos.angle * Math.PI) / 180;
-                const r = CHAMBER_RADIUS;
-                const cx = (CYLINDER_SIZE - 28) / 2 + r * Math.cos(rad) - 22;
-                const cy = (CYLINDER_SIZE - 28) / 2 + r * Math.sin(rad) - 22;
-                const isSelected = selectedChamber === chamberNum;
-                const isBullet = lastResult?.chamber === chamberNum;
+              {/* Outer dark ring */}
+              <View style={styles.wheelRingOuter} />
 
+              {/* Pockets */}
+              {WHEEL_ORDER.map((num, i) => {
+                const angle = (i / 37) * 2 * Math.PI - Math.PI / 2;
+                const px = CENTER + RING_R * Math.cos(angle) - POCKET_SZ / 2;
+                const py = CENTER + RING_R * Math.sin(angle) - POCKET_SZ / 2;
+                const col = getColor(num);
+                const isWinner = result?.number === num;
                 return (
-                  <TouchableOpacity
-                    key={chamberNum}
+                  <View
+                    key={num}
                     style={[
-                      styles.chamber,
+                      styles.pocket,
                       {
-                        position: "absolute",
-                        left: cx,
-                        top: cy,
-                        backgroundColor: isSelected
-                          ? `${colors.primary}25`
-                          : colors.surfaceContainer,
-                        borderColor: isSelected
-                          ? colors.primary
-                          : isBullet
-                          ? colors.destructive
-                          : colors.outlineVariant,
-                        shadowColor: isSelected ? colors.primary : "transparent",
+                        left: px, top: py,
+                        backgroundColor: NUM_COLOR_BG[col],
+                        borderColor: isWinner ? "#ffd700" : `${NUM_COLOR_BRIGHT[col]}50`,
+                        borderWidth: isWinner ? 2 : 1,
                       },
                     ]}
-                    onPress={() => !isPulling && setSelectedChamber(chamberNum)}
                   >
-                    <Text
-                      style={[
-                        styles.chamberText,
-                        {
-                          color: isSelected
-                            ? colors.primary
-                            : isBullet
-                            ? colors.destructive
-                            : colors.mutedForeground,
-                        },
-                      ]}
-                    >
-                      {chamberNum}
-                    </Text>
-                  </TouchableOpacity>
+                    <Text style={styles.pocketText}>{num}</Text>
+                  </View>
                 );
               })}
 
-              {/* Center hub */}
-              <View style={[styles.centerHub, { backgroundColor: colors.background }]}>
+              {/* Hub */}
+              <View style={styles.hub}>
                 <LinearGradient
-                  colors={[colors.primary, colors.primaryDim]}
-                  style={styles.centerHubGradient}
+                  colors={["#ffd700", "#b8860b"]}
+                  style={styles.hubGradient}
                 >
-                  <MaterialCommunityIcons name="lightning-bolt" size={24} color={colors.primaryForeground} />
+                  {result && !isSpinning ? (
+                    <Text style={styles.hubNum}>{result.number}</Text>
+                  ) : (
+                    <MaterialCommunityIcons name="circle-double" size={18} color="#000" />
+                  )}
                 </LinearGradient>
               </View>
-            </View>
-          </Animated.View>
+            </Animated.View>
 
-          {/* Status row */}
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: isPulling ? colors.tertiary : colors.secondary }]} />
-            <Text style={[styles.statusText, { color: colors.foreground }]}>
-              {isPulling ? "SPINNING..." : selectedChamber ? `CHAMBER ${selectedChamber} LOCKED` : "SELECT A CHAMBER"}
+            {/* Status text */}
+            <Text style={[styles.wheelStatus, { color: colors.mutedForeground }]}>
+              {isSpinning ? "SPINNING..." : "EUROPEAN ROULETTE · 0–36"}
             </Text>
           </View>
         </View>
 
-        {/* Result Banner */}
-        {lastResult && (
+        {/* ── HISTORY ──────────────────────────────────────────────────────── */}
+        {history.length > 0 && (
+          <View style={styles.historyRow}>
+            {history.map((h, i) => (
+              <View
+                key={i}
+                style={[styles.histDot, { backgroundColor: NUM_COLOR_BG[h.color], borderColor: `${NUM_COLOR_BRIGHT[h.color]}60` }]}
+              >
+                <Text style={styles.histDotText}>{h.n}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── RESULT BANNER ─────────────────────────────────────────────────── */}
+        {result && (
           <Animated.View
             style={[
               styles.resultBanner,
               {
-                backgroundColor: lastResult.win ? "rgba(0,244,254,0.08)" : "rgba(255,110,132,0.08)",
-                borderColor: lastResult.win ? colors.secondary : colors.destructive,
-                opacity: resultFlashAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+                backgroundColor: result.win ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)",
+                borderColor: result.win ? "#22c55e" : "#ef4444",
+                opacity: resultAnim,
+                transform: [{ scale: resultAnim.interpolate({ inputRange: [0,1], outputRange: [0.92,1] }) }],
               },
             ]}
           >
-            <MaterialCommunityIcons
-              name={lastResult.win ? "shield-check" : "skull"}
-              size={20}
-              color={lastResult.win ? colors.secondary : colors.destructive}
-            />
-            <Text style={[styles.resultText, { color: lastResult.win ? colors.secondary : colors.destructive }]}>
-              {lastResult.msg}
-            </Text>
+            <View
+              style={[
+                styles.resultNumBadge,
+                { backgroundColor: NUM_COLOR_BG[getColor(result.number)], borderColor: NUM_COLOR_BRIGHT[getColor(result.number)] },
+              ]}
+            >
+              <Text style={styles.resultNumText}>{result.number}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.resultMsg, { color: result.win ? "#22c55e" : "#ef4444" }]}>
+                {result.win ? "🏆 YOU WIN!" : "HOUSE WINS"}
+              </Text>
+              <Text style={[styles.resultSub, { color: colors.mutedForeground }]}>
+                {result.msg}
+              </Text>
+            </View>
           </Animated.View>
         )}
 
-        {/* Bet Row */}
-        <View style={[styles.betCard, { backgroundColor: "rgba(30,21,46,0.7)", borderColor: colors.border }]}>
-          <Text style={[styles.betLabel, { color: colors.mutedForeground }]}>BET AMOUNT</Text>
-          <View style={[styles.betInputRow, { backgroundColor: colors.input }]}>
-            <TextInput
-              value={betAmount}
-              onChangeText={setBetAmount}
-              keyboardType="decimal-pad"
-              style={[styles.betInput, { color: colors.foreground }]}
-            />
+        {/* ── BET BOARD ─────────────────────────────────────────────────────── */}
+        <View style={styles.boardWrap}>
+          <Text style={[styles.boardLabel, { color: colors.mutedForeground }]}>PLACE YOUR BET</Text>
+
+          {/* Number grid */}
+          <View style={styles.boardGrid}>
+            {/* Zero cell */}
             <TouchableOpacity
-              style={[styles.halvBtn, { backgroundColor: colors.accent }]}
-              onPress={() => setBetAmount((Math.max(10, parseFloat(betAmount) / 2)).toFixed(2))}
+              onPress={() => selectBet("straight", "0")}
+              style={[
+                styles.zeroCell,
+                {
+                  backgroundColor: isSelected("straight","0") ? "#15803d" : "#0f3d22",
+                  borderColor: isSelected("straight","0") ? "#ffd700" : "#16a34a70",
+                },
+              ]}
             >
-              <Text style={[styles.halvText, { color: colors.foreground }]}>½</Text>
+              <Text style={styles.cellNum}>0</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.halvBtn, { backgroundColor: colors.accent }]}
-              onPress={() => setBetAmount((parseFloat(betAmount) * 2).toFixed(2))}
-            >
-              <Text style={[styles.halvText, { color: colors.foreground }]}>2×</Text>
-            </TouchableOpacity>
+
+            {/* 3-row × 12-col number grid */}
+            <View style={styles.numGrid}>
+              {GRID_ROWS.map((row, ri) => (
+                <View key={ri} style={styles.numRow}>
+                  {row.map((num) => {
+                    const col = getColor(num);
+                    const sel = isSelected("straight", String(num));
+                    return (
+                      <TouchableOpacity
+                        key={num}
+                        onPress={() => selectBet("straight", String(num))}
+                        style={[
+                          styles.numCell,
+                          {
+                            backgroundColor: sel
+                              ? NUM_COLOR_BRIGHT[col]
+                              : NUM_COLOR_BG[col],
+                            borderColor: sel ? "#ffd700" : `${NUM_COLOR_BRIGHT[col]}35`,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.cellNum}>{num}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+
+            {/* 2:1 column bet cells (one per row = top/mid/bot column) */}
+            <View style={styles.colBets}>
+              {(["3rd","2nd","1st"] as const).map((dz) => (
+                <TouchableOpacity
+                  key={dz}
+                  onPress={() => selectBet("dozen", dz)}
+                  style={[
+                    styles.colBetCell,
+                    {
+                      backgroundColor: isSelected("dozen", dz) ? "#ffd70025" : colors.surfaceContainerLow,
+                      borderColor: isSelected("dozen", dz) ? "#ffd700" : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.colBetText, { color: isSelected("dozen", dz) ? "#ffd700" : colors.mutedForeground }]}>
+                    2:1
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Dozen row */}
+          <View style={styles.dozenRow}>
+            {([["1st","1st 12"],["2nd","2nd 12"],["3rd","3rd 12"]] as const).map(([val,label]) => {
+              const sel = isSelected("dozen", val);
+              return (
+                <TouchableOpacity
+                  key={val}
+                  onPress={() => selectBet("dozen", val)}
+                  style={[
+                    styles.dozenCell,
+                    {
+                      backgroundColor: sel ? "#ffd70020" : colors.surfaceContainerLow,
+                      borderColor: sel ? "#ffd700" : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.dozenText, { color: sel ? "#ffd700" : colors.foreground }]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Outside bets row */}
+          <View style={styles.outsideRow}>
+            {[
+              { type: "range" as BetType, value: "low",   label: "1–18",   bg: "#1e293b" },
+              { type: "parity" as BetType, value: "even", label: "EVEN",   bg: "#1e293b" },
+              { type: "color" as BetType, value: "red",   label: "●",      bg: "#991b1b" },
+              { type: "color" as BetType, value: "black", label: "●",      bg: "#111827" },
+              { type: "parity" as BetType, value: "odd",  label: "ODD",    bg: "#1e293b" },
+              { type: "range" as BetType, value: "high",  label: "19–36",  bg: "#1e293b" },
+            ].map((b) => {
+              const sel = isSelected(b.type, b.value);
+              return (
+                <TouchableOpacity
+                  key={`${b.type}-${b.value}`}
+                  onPress={() => selectBet(b.type, b.value)}
+                  style={[
+                    styles.outsideCell,
+                    {
+                      backgroundColor: sel ? (b.bg + "dd") : b.bg,
+                      borderColor: sel ? "#ffd700" : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.outsideText, {
+                    color: sel ? "#ffd700" :
+                      b.value === "red" ? "#ff8080" :
+                      b.value === "black" ? "#9ca3af" :
+                      colors.foreground,
+                    fontSize: b.label === "●" ? 20 : 10,
+                  }]}>
+                    {b.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* Pull trigger */}
-        <Animated.View style={{ transform: [{ scale: spinBtnAnim }] }}>
-          <TouchableOpacity onPress={pullTrigger} disabled={isPulling || !selectedChamber} activeOpacity={0.85}>
-            <LinearGradient
-              colors={isPulling || !selectedChamber ? [colors.surfaceBright, colors.surfaceBright] : [colors.primary, colors.primaryDim]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.pullBtn}
-            >
-              <View style={styles.pullBtnGloss} />
-              <Text style={[styles.pullBtnSub, { color: isPulling || !selectedChamber ? colors.mutedForeground : `${colors.primaryForeground}90` }]}>
-                {isPulling ? "SPINNING..." : "EXECUTE SESSION"}
+        {/* ── BET CONTROLS ──────────────────────────────────────────────────── */}
+        <View style={[styles.betControls, { backgroundColor: colors.surfaceContainerLow }]}>
+          {/* Bet amount chips */}
+          <View style={styles.betChipRow}>
+            <Text style={[styles.betChipLabel, { color: colors.mutedForeground }]}>CHIP VALUE</Text>
+            <View style={styles.betChips}>
+              {BET_CHIPS.map((amt, i) => {
+                const active = betIdx === i;
+                return (
+                  <PressableScale
+                    key={amt}
+                    onPress={() => setBetIdx(i)}
+                    style={[
+                      styles.betChipBtn,
+                      {
+                        backgroundColor: active ? "#9547f7" : colors.accent,
+                        borderColor: active ? "#c59aff" : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.betChipBtnText, { color: active ? "#fff" : colors.mutedForeground }]}>
+                      ${amt}
+                    </Text>
+                  </PressableScale>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Selected bet + spin button */}
+          <View style={[styles.betInfoRow, { borderColor: colors.border }]}>
+            <View style={styles.betInfoLeft}>
+              <Text style={[styles.betInfoLabel, { color: colors.mutedForeground }]}>YOUR BET</Text>
+              <Text style={[styles.betInfoBet, { color: colors.foreground }]} numberOfLines={1}>
+                {betLabel}
               </Text>
-              <Text style={[styles.pullBtnText, { color: isPulling || !selectedChamber ? colors.mutedForeground : colors.primaryForeground }]}>
-                {isPulling ? "FIRING..." : selectedChamber ? "PULL TRIGGER" : "SELECT CHAMBER"}
+              <Text style={[styles.betInfoAmount, { color: "#ffd700" }]}>
+                {formatBalance(betAmount)}
+              </Text>
+            </View>
+
+            {result && !isSpinning && (
+              <PressableScale
+                onPress={() => { setResult(null); setSelectedBet(null); }}
+                style={[styles.clearBtn, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.clearBtnText, { color: colors.mutedForeground }]}>CLEAR</Text>
+              </PressableScale>
+            )}
+          </View>
+
+          <PressableScale
+            onPress={spin}
+            disabled={!canSpin}
+            scale={0.96}
+            containerStyle={{ opacity: canSpin ? 1 : 0.45 }}
+          >
+            <LinearGradient
+              colors={canSpin ? ["#9547f7", "#c59aff"] : [colors.surfaceBright, colors.surfaceBright]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.spinBtn}
+            >
+              <View style={styles.spinBtnGloss} />
+              <MaterialCommunityIcons name="autorenew" size={22} color={canSpin ? "#fff" : colors.mutedForeground} />
+              <Text style={[styles.spinBtnText, { color: canSpin ? "#fff" : colors.mutedForeground }]}>
+                {isSpinning ? "SPINNING..." : !selectedBet ? "PICK A BET" : betAmount > balance ? "INSUFFICIENT FUNDS" : "SPIN THE WHEEL"}
               </Text>
             </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Compact History */}
-        <View style={[styles.historyCard, { backgroundColor: "rgba(30,21,46,0.6)", borderColor: colors.border }]}>
-          <View style={styles.historyHeader}>
-            <MaterialCommunityIcons name="history" size={14} color={colors.secondary} />
-            <Text style={[styles.historyTitle, { color: colors.mutedForeground }]}>RECENT OUTCOMES</Text>
-          </View>
-          <View style={styles.historyItems}>
-            {RECENT_HISTORY.slice(0, 3).map((item, i) => (
-              <View key={i} style={styles.historyItem}>
-                <MaterialCommunityIcons
-                  name={item.win ? "check-circle" : "close-circle"}
-                  size={14}
-                  color={item.win ? colors.secondary : colors.destructive}
-                />
-                <Text style={[styles.historyChember, { color: colors.mutedForeground }]}>Ch.{item.chamber}</Text>
-                <Text style={[styles.historyUser, { color: colors.foreground }]}>{item.user}</Text>
-                <Text style={[styles.historyAmount, { color: item.win ? colors.secondary : colors.destructive }]}>
-                  {item.amount}
-                </Text>
-                <Text style={[styles.historyTime, { color: colors.mutedForeground }]}>{item.time}</Text>
-              </View>
-            ))}
-          </View>
+          </PressableScale>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    gap: 10,
+
+  // ── Wheel ──────────────────────────────────────────────────────────────────
+  wheelSection: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 4,
   },
-  titleRow: {
+  wheelOuter: {
+    width: WHEEL_D + 32,
+    height: WHEEL_D + 48,
+    borderRadius: (WHEEL_D + 32) / 2,
+    borderWidth: 2,
+    backgroundColor: "#0a0a14",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 8,
+    overflow: "hidden",
+    shadowColor: "#ffd700",
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+  },
+  ballMarker: {
+    position: "absolute",
+    top: 10,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#ffd700",
+    zIndex: 10,
+    shadowColor: "#fff",
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+  wheelInner: {
+    width: WHEEL_D,
+    height: WHEEL_D,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wheelRingOuter: {
+    position: "absolute",
+    width: WHEEL_D,
+    height: WHEEL_D,
+    borderRadius: WHEEL_D / 2,
+    borderWidth: 4,
+    borderColor: "#1a1010",
+    backgroundColor: "#0f0f1a",
+  },
+  pocket: {
+    position: "absolute",
+    width: POCKET_SZ,
+    height: POCKET_SZ,
+    borderRadius: POCKET_SZ / 2,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pocketText: {
+    color: "#fff",
+    fontSize: 6.5,
+    fontWeight: "900",
+  },
+  hub: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: "hidden",
+    borderWidth: 3,
+    borderColor: "#b8860b",
+    shadowColor: "#ffd700",
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  hubGradient: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hubNum: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#000",
+  },
+  wheelStatus: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  },
+
+  // ── History ────────────────────────────────────────────────────────────────
+  historyRow: {
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    gap: 4,
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  histDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  histDotText: {
+    color: "#fff",
+    fontSize: 7.5,
+    fontWeight: "900",
+  },
+
+  // ── Result ─────────────────────────────────────────────────────────────────
+  resultBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  accentBar: {
-    width: 4,
-    height: 44,
-    borderRadius: 2,
-    shadowColor: "#00f4fe",
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-  },
-  gameTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    fontStyle: "italic",
-    letterSpacing: -0.5,
-  },
-  odds: {
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  cylinderStage: {
-    borderRadius: 24,
+    marginHorizontal: 12,
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: "center",
-    overflow: "hidden",
-    gap: 12,
   },
-  bgGlow: {
-    position: "absolute",
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    top: -40,
-    alignSelf: "center",
-  },
-  cylinderContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  outerRing: {
-    position: "absolute",
-    borderWidth: 2,
-    borderStyle: "dashed",
-  },
-  innerCircle: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 9999,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chamber: {
+  resultNumBadge: {
     width: 44,
     height: 44,
     borderRadius: 22,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
   },
-  chamberText: {
-    fontSize: 15,
+  resultNumText: {
+    color: "#fff",
+    fontSize: 18,
     fontWeight: "900",
   },
-  centerHub: {
-    position: "absolute",
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  centerHubGradient: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  resultBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  resultText: {
-    fontSize: 14,
+  resultMsg: {
+    fontSize: 15,
     fontWeight: "900",
     letterSpacing: -0.3,
   },
-  betCard: {
-    borderRadius: 18,
+  resultSub: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+
+  // ── Board ──────────────────────────────────────────────────────────────────
+  boardWrap: {
+    marginHorizontal: 10,
+    marginTop: 10,
+    gap: 2,
+  },
+  boardLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  boardGrid: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  zeroCell: {
+    width: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 4,
+    borderWidth: 1.5,
+  },
+  cellNum: {
+    color: "#fff",
+    fontSize: 8.5,
+    fontWeight: "900",
+  },
+  numGrid: {
+    flex: 1,
+    gap: 2,
+  },
+  numRow: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  numCell: {
+    flex: 1,
+    height: 30,
+    borderRadius: 3,
     borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colBets: {
+    gap: 2,
+    width: 28,
+  },
+  colBetCell: {
+    flex: 1,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colBetText: {
+    fontSize: 7.5,
+    fontWeight: "900",
+  },
+  dozenRow: {
+    flexDirection: "row",
+    gap: 2,
+    marginTop: 2,
+    marginLeft: 26,
+    marginRight: 30,
+  },
+  dozenCell: {
+    flex: 1,
+    height: 28,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dozenText: {
+    fontSize: 9.5,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  outsideRow: {
+    flexDirection: "row",
+    gap: 2,
+    marginTop: 2,
+    marginLeft: 26,
+    marginRight: 30,
+  },
+  outsideCell: {
+    flex: 1,
+    height: 32,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  outsideText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  betControls: {
+    margin: 10,
+    marginTop: 12,
+    borderRadius: 20,
+    padding: 14,
+    gap: 12,
+  },
+  betChipRow: {
     gap: 8,
   },
-  betLabel: {
+  betChipLabel: {
     fontSize: 9,
-    fontWeight: "800",
+    fontWeight: "900",
     letterSpacing: 2,
     textTransform: "uppercase",
   },
-  betInputRow: {
+  betChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  betChipBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    minWidth: 48,
+    alignItems: "center",
+  },
+  betChipBtnText: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  betInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 8,
+    borderTopWidth: 1,
+    paddingTop: 10,
   },
-  betInput: {
+  betInfoLeft: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-    padding: 0,
-  },
-  halvBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  halvText: {
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  pullBtn: {
-    paddingVertical: 16,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
     gap: 2,
   },
-  pullBtnGloss: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-  pullBtnSub: {
-    fontSize: 9,
+  betInfoLabel: {
+    fontSize: 8,
     fontWeight: "900",
-    letterSpacing: 3,
+    letterSpacing: 2,
     textTransform: "uppercase",
   },
-  pullBtnText: {
+  betInfoBet: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  betInfoAmount: {
     fontSize: 20,
     fontWeight: "900",
     letterSpacing: -0.5,
-    textTransform: "uppercase",
   },
-  historyCard: {
-    borderRadius: 16,
+  clearBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 8,
   },
-  historyHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  historyTitle: {
-    fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 2,
-    textTransform: "uppercase",
-  },
-  historyItems: {
-    gap: 6,
-  },
-  historyItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  historyChember: {
+  clearBtnText: {
     fontSize: 10,
-    fontWeight: "700",
-    width: 28,
+    fontWeight: "800",
+    letterSpacing: 1,
   },
-  historyUser: {
-    flex: 1,
-    fontSize: 11,
-    fontWeight: "700",
+  spinBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 9999,
+    overflow: "hidden",
+    shadowColor: "#9547f7",
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
-  historyAmount: {
-    fontSize: 11,
+  spinBtnGloss: {
+    position: "absolute",
+    top: 0, left: 0, right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  spinBtnText: {
+    fontSize: 15,
     fontWeight: "900",
-  },
-  historyTime: {
-    fontSize: 9,
-    width: 40,
-    textAlign: "right",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
   },
 });

@@ -1,0 +1,1 @@
+- [Metro ENOENT crash fix](metro-enoent-fix.md) — Replit skills create/delete .tmp dirs in .local/; Metro FallbackWatcher crashes. Fix: raw RegExp blockList in metro.config.js.
