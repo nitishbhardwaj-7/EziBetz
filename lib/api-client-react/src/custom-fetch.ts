@@ -1,5 +1,10 @@
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
+  /**
+   * Internal — set on the automatic retry so a second 401 doesn't trigger
+   * another refresh attempt and loop forever.
+   */
+  __skipUnauthorizedRetry?: boolean;
 };
 
 export type ErrorType<T = unknown> = ApiError<T>;
@@ -8,8 +13,20 @@ export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
+/**
+ * Called when a request comes back 401. Should attempt to obtain a new
+ * access token (e.g. via a refresh token) and return `true` if the caller
+ * should retry the original request, or `false` to give up (e.g. the
+ * refresh token is also invalid, so the user needs to log in again).
+ */
+export type UnauthorizedHandler = () => Promise<boolean>;
+
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+
+// Paths that must never trigger the unauthorized handler themselves —
+// otherwise a failed login/refresh could recurse into another refresh.
+const SKIP_UNAUTHORIZED_HANDLING = /\/auth\/(login|register|refresh)(\?|$)/;
 
 // ---------------------------------------------------------------------------
 // Module-level configuration
@@ -17,6 +34,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _unauthorizedHandler: UnauthorizedHandler | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +60,16 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a handler invoked the first time a request comes back 401
+ * (except for /auth/login, /auth/register, and /auth/refresh themselves).
+ * If it resolves `true`, the original request is retried once with a
+ * freshly-read auth token. Pass `null` to clear the handler.
+ */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  _unauthorizedHandler = handler;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -361,6 +389,18 @@ export async function customFetch<T = unknown>(
   const requestInfo = { method, url: resolveUrl(input) };
 
   const response = await fetch(input, { ...init, method, headers });
+
+  if (
+    response.status === 401 &&
+    _unauthorizedHandler &&
+    !options.__skipUnauthorizedRetry &&
+    !SKIP_UNAUTHORIZED_HANDLING.test(requestInfo.url)
+  ) {
+    const shouldRetry = await _unauthorizedHandler();
+    if (shouldRetry) {
+      return customFetch<T>(input, { ...options, __skipUnauthorizedRetry: true });
+    }
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

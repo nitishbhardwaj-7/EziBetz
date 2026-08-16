@@ -21,7 +21,7 @@ import { useColors } from "@/hooks/useColors";
 export function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
+  const { login, register } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,15 +32,24 @@ export function LoginScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
-
+  
   const handleSubmit = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError(null);
     setLoading(true);
-    const result = await login(email, password);
+    
+    let result;
+    if (isRegister) {
+      // For registration, we generate a username from the email handle
+      const username = email.split("@")[0].replace(/[^a-z0-9_]/gi, "_");
+      result = await register(email, password, username, username);
+    } else {
+      result = await login(email, password);
+    }
+    
     setLoading(false);
     if (!result.success) {
-      setError(result.error ?? "Login failed");
+      setError(result.error ?? (isRegister ? "Registration failed" : "Login failed"));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };

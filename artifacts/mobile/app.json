@@ -17,6 +17,7 @@
       "supportsTablet": false
     },
     "android": {
+      "package": "com.ezibetz.mobile",
       "backgroundColor": "#110a1e"
     },
     "web": {

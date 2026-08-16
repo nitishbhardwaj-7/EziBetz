@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: API specification
@@ -10,6 +9,12 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: User authentication operations
+  - name: payments
+    description: Payment & balance operations
+  - name: games
+    description: Server-settled game operations
 paths:
   /healthz:
     get:
@@ -24,6 +29,332 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: User logged in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+
+  /auth/refresh:
+    post:
+      operationId: refresh
+      tags: [auth]
+      summary: Exchange a refresh token for a new access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New access and refresh tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Revoke a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Refresh token revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResult"
+
+  /payments/deposit:
+    post:
+      operationId: deposit
+      tags: [payments]
+      summary: Deposit funds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "200":
+          description: Deposit completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+
+  /payments/withdraw:
+    post:
+      operationId: withdraw
+      tags: [payments]
+      summary: Withdraw funds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "200":
+          description: Withdrawal completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+
+  /payments/history:
+    get:
+      operationId: getTransactionHistory
+      tags: [payments]
+      summary: Get transaction history
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TransactionResponse"
+
+  /games/seed:
+    get:
+      operationId: getGameSeed
+      tags: [games]
+      summary: Get the active provably-fair seed commitment
+      responses:
+        "200":
+          description: Current committed seed hash, client seed, and nonce
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSeedResponse"
+
+  /games/seed/rotate:
+    post:
+      operationId: rotateGameSeed
+      tags: [games]
+      summary: Reveal the current seed and start a new one
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateSeedRequest"
+      responses:
+        "200":
+          description: Previous seed revealed; new seed committed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateSeedResult"
+
+  /games/dice/roll:
+    post:
+      operationId: rollDice
+      tags: [games]
+      summary: Place a dice bet, settled server-side
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiceRollRequest"
+      responses:
+        "200":
+          description: Bet settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiceRollResponse"
+
+  /games/roulette/spin:
+    post:
+      operationId: spinRoulette
+      tags: [games]
+      summary: Place a roulette bet, settled server-side
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouletteSpinRequest"
+      responses:
+        "200":
+          description: Bet settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RouletteSpinResponse"
+
+  /games/slots/spin:
+    post:
+      operationId: spinSlots
+      tags: [games]
+      summary: Spin the slots, settled server-side
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlotsSpinRequest"
+      responses:
+        "200":
+          description: Bet settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlotsSpinResponse"
+
+  /games/lucky-pick/draw:
+    post:
+      operationId: drawLuckyPick
+      tags: [games]
+      summary: Place a lucky-pick bet, settled server-side
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LuckyPickDrawRequest"
+      responses:
+        "200":
+          description: Bet settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LuckyPickDrawResponse"
+
+  /games/blackjack/deal:
+    post:
+      operationId: dealBlackjack
+      tags: [games]
+      summary: Start a new blackjack hand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlackjackDealRequest"
+      responses:
+        "200":
+          description: Hand dealt (may already be settled, on a natural blackjack)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlackjackHandResponse"
+
+  /games/blackjack/hit:
+    post:
+      operationId: hitBlackjack
+      tags: [games]
+      summary: Take another card on the current hand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlackjackHandRequest"
+      responses:
+        "200":
+          description: Card dealt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlackjackHandResponse"
+
+  /games/blackjack/stand:
+    post:
+      operationId: standBlackjack
+      tags: [games]
+      summary: Stand — dealer plays out and the hand settles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlackjackHandRequest"
+      responses:
+        "200":
+          description: Hand settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlackjackHandResponse"
+
+  /games/blackjack/double:
+    post:
+      operationId: doubleBlackjack
+      tags: [games]
+      summary: Double down — doubles the bet, deals one card, then auto-stands
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlackjackHandRequest"
+      responses:
+        "200":
+          description: Hand settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlackjackHandResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +365,448 @@ components:
       required:
         - status
 
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+      required:
+        - email
+        - password
+        - username
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserResponse"
+      required:
+        - token
+        - refreshToken
+        - user
+
+    RefreshRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+      required:
+        - refreshToken
+
+    LogoutResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        balance:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - email
+        - username
+        - balance
+        - createdAt
+
+    PaymentRequest:
+      type: object
+      properties:
+        amount:
+          type: integer
+      required:
+        - amount
+
+    TransactionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        amount:
+          type: integer
+        type:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - userId
+        - amount
+        - type
+        - status
+        - createdAt
+
+    GameSeedResponse:
+      type: object
+      properties:
+        serverSeedHash:
+          type: string
+        clientSeed:
+          type: string
+        nonce:
+          type: integer
+      required:
+        - serverSeedHash
+        - clientSeed
+        - nonce
+
+    RotateSeedRequest:
+      type: object
+      properties:
+        clientSeed:
+          type: string
+          description: Optional player-supplied seed for the new commitment. A random one is generated if omitted.
+
+    RotateSeedResult:
+      type: object
+      properties:
+        revealedServerSeed:
+          type: string
+          nullable: true
+          description: The raw seed that was active until now (null if there was no prior seed to reveal).
+        revealedServerSeedHash:
+          type: string
+          nullable: true
+        newServerSeedHash:
+          type: string
+        clientSeed:
+          type: string
+      required:
+        - newServerSeedHash
+        - clientSeed
+
+    DiceRollRequest:
+      type: object
+      properties:
+        betAmount:
+          type: integer
+          minimum: 1
+          description: Bet amount in cents.
+        predictionType:
+          type: string
+          enum: [over, under, exact]
+        predictionValue:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: Required when predictionType is "exact".
+      required:
+        - betAmount
+        - predictionType
+
+    DiceRollResponse:
+      type: object
+      properties:
+        roll:
+          type: integer
+        won:
+          type: boolean
+        payout:
+          type: integer
+          description: Total credited back in cents; 0 on a loss.
+        balanceAfter:
+          type: integer
+        serverSeedHash:
+          type: string
+        clientSeed:
+          type: string
+        nonce:
+          type: integer
+      required:
+        - roll
+        - won
+        - payout
+        - balanceAfter
+        - serverSeedHash
+        - clientSeed
+        - nonce
+
+    RouletteSpinRequest:
+      type: object
+      properties:
+        betAmount:
+          type: integer
+          minimum: 1
+          description: Bet amount in cents.
+        betType:
+          type: string
+          enum: [straight, color, parity, range, dozen]
+        betValue:
+          type: string
+          description: >
+            Meaning depends on betType — straight: "0".."36"; color: "red"|"black";
+            parity: "even"|"odd"; range: "low"|"high"; dozen: "1st"|"2nd"|"3rd".
+      required:
+        - betAmount
+        - betType
+        - betValue
+
+    RouletteSpinResponse:
+      type: object
+      properties:
+        number:
+          type: integer
+        won:
+          type: boolean
+        payout:
+          type: integer
+          description: Total credited back in cents; 0 on a loss.
+        balanceAfter:
+          type: integer
+        serverSeedHash:
+          type: string
+        clientSeed:
+          type: string
+        nonce:
+          type: integer
+      required:
+        - number
+        - won
+        - payout
+        - balanceAfter
+        - serverSeedHash
+        - clientSeed
+        - nonce
+
+    SlotsSpinRequest:
+      type: object
+      properties:
+        betAmount:
+          type: integer
+          minimum: 1
+          description: Bet amount in cents.
+      required:
+        - betAmount
+
+    SlotsSpinResponse:
+      type: object
+      properties:
+        symbols:
+          type: array
+          items:
+            type: string
+          description: The 5 reel results, in order.
+        won:
+          type: boolean
+        multiplier:
+          type: number
+        payout:
+          type: integer
+          description: Total credited back in cents; 0 on a loss.
+        balanceAfter:
+          type: integer
+        serverSeedHash:
+          type: string
+        clientSeed:
+          type: string
+        nonce:
+          type: integer
+      required:
+        - symbols
+        - won
+        - multiplier
+        - payout
+        - balanceAfter
+        - serverSeedHash
+        - clientSeed
+        - nonce
+
+    LuckyPickDrawRequest:
+      type: object
+      properties:
+        betAmount:
+          type: integer
+          minimum: 1
+          description: Bet amount in cents.
+        betType:
+          type: string
+          enum: [single, jodi, patti]
+        betSide:
+          type: string
+          enum: [open, close]
+          description: Required for "single" and "patti"; ignored for "jodi".
+        pick:
+          type: string
+          description: >
+            Meaning depends on betType — single: "0".."9"; jodi: "00".."99";
+            patti: a 3-digit non-decreasing string, e.g. "025".
+      required:
+        - betAmount
+        - betType
+        - pick
+
+    LuckyPickDrawResponse:
+      type: object
+      properties:
+        openDigits:
+          type: array
+          items:
+            type: integer
+        openAnk:
+          type: integer
+        openPatti:
+          type: string
+        closeDigits:
+          type: array
+          items:
+            type: integer
+        closeAnk:
+          type: integer
+        closePatti:
+          type: string
+        jodi:
+          type: string
+        won:
+          type: boolean
+        payout:
+          type: integer
+          description: Total credited back in cents; 0 on a loss.
+        balanceAfter:
+          type: integer
+        serverSeedHash:
+          type: string
+        clientSeed:
+          type: string
+        nonce:
+          type: integer
+      required:
+        - openDigits
+        - openAnk
+        - openPatti
+        - closeDigits
+        - closeAnk
+        - closePatti
+        - jodi
+        - won
+        - payout
+        - balanceAfter
+        - serverSeedHash
+        - clientSeed
+        - nonce
+
+    PlayingCard:
+      type: object
+      properties:
+        suit:
+          type: string
+          enum: ["♠", "♥", "♦", "♣"]
+        value:
+          type: string
+        numericValue:
+          type: integer
+        hidden:
+          type: boolean
+      required:
+        - suit
+        - value
+        - numericValue
+
+    BlackjackDealRequest:
+      type: object
+      properties:
+        betAmount:
+          type: integer
+          minimum: 1
+          description: Bet amount in cents.
+      required:
+        - betAmount
+
+    BlackjackHandRequest:
+      type: object
+      properties:
+        handId:
+          type: integer
+      required:
+        - handId
+
+    BlackjackHandResponse:
+      type: object
+      properties:
+        handId:
+          type: integer
+        status:
+          type: string
+          enum: [playing, settled]
+        playerCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayingCard"
+        dealerCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayingCard"
+        playerValue:
+          type: integer
+        dealerValue:
+          type: integer
+          description: Value of the dealer's visible cards only, while playing; full value once settled.
+        betAmount:
+          type: integer
+          description: Current bet in cents (doubled after a double-down).
+        result:
+          type: string
+          nullable: true
+        payout:
+          type: integer
+          nullable: true
+        balanceAfter:
+          type: integer
+        serverSeedHash:
+          type: string
+        clientSeed:
+          type: string
+        nonce:
+          type: integer
+      required:
+        - handId
+        - status
+        - playerCards
+        - dealerCards
+        - playerValue
+        - dealerValue
+        - betAmount
+        - balanceAfter
+        - serverSeedHash
+        - clientSeed
+        - nonce

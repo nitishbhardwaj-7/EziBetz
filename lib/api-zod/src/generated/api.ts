@@ -14,3 +14,447 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Register a new user
+ */
+export const RegisterBody = zod.object({
+  email: zod.string().email(),
+  password: zod.string(),
+  username: zod.string(),
+  displayName: zod.string().optional(),
+});
+
+export const RegisterResponse = zod.object({
+  token: zod.string(),
+  refreshToken: zod.string(),
+  user: zod.object({
+    id: zod.number(),
+    email: zod.string(),
+    username: zod.string(),
+    displayName: zod.string().optional(),
+    balance: zod.number(),
+    createdAt: zod.string(),
+  }),
+});
+
+/**
+ * @summary Login user
+ */
+export const LoginBody = zod.object({
+  email: zod.string().email(),
+  password: zod.string(),
+});
+
+export const LoginResponse = zod.object({
+  token: zod.string(),
+  refreshToken: zod.string(),
+  user: zod.object({
+    id: zod.number(),
+    email: zod.string(),
+    username: zod.string(),
+    displayName: zod.string().optional(),
+    balance: zod.number(),
+    createdAt: zod.string(),
+  }),
+});
+
+/**
+ * @summary Get current authenticated user
+ */
+export const GetMeResponse = zod.object({
+  id: zod.number(),
+  email: zod.string(),
+  username: zod.string(),
+  displayName: zod.string().optional(),
+  balance: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Exchange a refresh token for a new access token
+ */
+export const RefreshBody = zod.object({
+  refreshToken: zod.string(),
+});
+
+export const RefreshResponse = zod.object({
+  token: zod.string(),
+  refreshToken: zod.string(),
+  user: zod.object({
+    id: zod.number(),
+    email: zod.string(),
+    username: zod.string(),
+    displayName: zod.string().optional(),
+    balance: zod.number(),
+    createdAt: zod.string(),
+  }),
+});
+
+/**
+ * @summary Revoke a refresh token
+ */
+export const LogoutBody = zod.object({
+  refreshToken: zod.string(),
+});
+
+export const LogoutResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Deposit funds
+ */
+export const DepositBody = zod.object({
+  amount: zod.number(),
+});
+
+export const DepositResponse = zod.object({
+  id: zod.number(),
+  userId: zod.number(),
+  amount: zod.number(),
+  type: zod.string(),
+  status: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Withdraw funds
+ */
+export const WithdrawBody = zod.object({
+  amount: zod.number(),
+});
+
+export const WithdrawResponse = zod.object({
+  id: zod.number(),
+  userId: zod.number(),
+  amount: zod.number(),
+  type: zod.string(),
+  status: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Get transaction history
+ */
+export const GetTransactionHistoryResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.number(),
+  amount: zod.number(),
+  type: zod.string(),
+  status: zod.string(),
+  createdAt: zod.string(),
+});
+export const GetTransactionHistoryResponse = zod.array(
+  GetTransactionHistoryResponseItem,
+);
+
+/**
+ * @summary Get the active provably-fair seed commitment
+ */
+export const GetGameSeedResponse = zod.object({
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Reveal the current seed and start a new one
+ */
+export const RotateGameSeedBody = zod.object({
+  clientSeed: zod
+    .string()
+    .optional()
+    .describe(
+      "Optional player-supplied seed for the new commitment. A random one is generated if omitted.",
+    ),
+});
+
+export const RotateGameSeedResponse = zod.object({
+  revealedServerSeed: zod
+    .string()
+    .nullish()
+    .describe(
+      "The raw seed that was active until now (null if there was no prior seed to reveal).",
+    ),
+  revealedServerSeedHash: zod.string().nullish(),
+  newServerSeedHash: zod.string(),
+  clientSeed: zod.string(),
+});
+
+/**
+ * @summary Place a dice bet, settled server-side
+ */
+
+export const rollDiceBodyPredictionValueMax = 6;
+
+export const RollDiceBody = zod.object({
+  betAmount: zod.number().min(1).describe("Bet amount in cents."),
+  predictionType: zod.enum(["over", "under", "exact"]),
+  predictionValue: zod
+    .number()
+    .min(1)
+    .max(rollDiceBodyPredictionValueMax)
+    .optional()
+    .describe('Required when predictionType is \"exact\".'),
+});
+
+export const RollDiceResponse = zod.object({
+  roll: zod.number(),
+  won: zod.boolean(),
+  payout: zod.number().describe("Total credited back in cents; 0 on a loss."),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Place a roulette bet, settled server-side
+ */
+
+export const SpinRouletteBody = zod.object({
+  betAmount: zod.number().min(1).describe("Bet amount in cents."),
+  betType: zod.enum(["straight", "color", "parity", "range", "dozen"]),
+  betValue: zod
+    .string()
+    .describe(
+      'Meaning depends on betType — straight: \"0\"..\"36\"; color: \"red\"|\"black\"; parity: \"even\"|\"odd\"; range: \"low\"|\"high\"; dozen: \"1st\"|\"2nd\"|\"3rd\".\n',
+    ),
+});
+
+export const SpinRouletteResponse = zod.object({
+  number: zod.number(),
+  won: zod.boolean(),
+  payout: zod.number().describe("Total credited back in cents; 0 on a loss."),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Spin the slots, settled server-side
+ */
+
+export const SpinSlotsBody = zod.object({
+  betAmount: zod.number().min(1).describe("Bet amount in cents."),
+});
+
+export const SpinSlotsResponse = zod.object({
+  symbols: zod.array(zod.string()).describe("The 5 reel results, in order."),
+  won: zod.boolean(),
+  multiplier: zod.number(),
+  payout: zod.number().describe("Total credited back in cents; 0 on a loss."),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Place a lucky-pick bet, settled server-side
+ */
+
+export const DrawLuckyPickBody = zod.object({
+  betAmount: zod.number().min(1).describe("Bet amount in cents."),
+  betType: zod.enum(["single", "jodi", "patti"]),
+  betSide: zod
+    .enum(["open", "close"])
+    .optional()
+    .describe('Required for \"single\" and \"patti\"; ignored for \"jodi\".'),
+  pick: zod
+    .string()
+    .describe(
+      'Meaning depends on betType — single: \"0\"..\"9\"; jodi: \"00\"..\"99\"; patti: a 3-digit non-decreasing string, e.g. \"025\".\n',
+    ),
+});
+
+export const DrawLuckyPickResponse = zod.object({
+  openDigits: zod.array(zod.number()),
+  openAnk: zod.number(),
+  openPatti: zod.string(),
+  closeDigits: zod.array(zod.number()),
+  closeAnk: zod.number(),
+  closePatti: zod.string(),
+  jodi: zod.string(),
+  won: zod.boolean(),
+  payout: zod.number().describe("Total credited back in cents; 0 on a loss."),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Start a new blackjack hand
+ */
+
+export const DealBlackjackBody = zod.object({
+  betAmount: zod.number().min(1).describe("Bet amount in cents."),
+});
+
+export const DealBlackjackResponse = zod.object({
+  handId: zod.number(),
+  status: zod.enum(["playing", "settled"]),
+  playerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  dealerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  playerValue: zod.number(),
+  dealerValue: zod
+    .number()
+    .describe(
+      "Value of the dealer's visible cards only, while playing; full value once settled.",
+    ),
+  betAmount: zod
+    .number()
+    .describe("Current bet in cents (doubled after a double-down)."),
+  result: zod.string().nullish(),
+  payout: zod.number().nullish(),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Take another card on the current hand
+ */
+export const HitBlackjackBody = zod.object({
+  handId: zod.number(),
+});
+
+export const HitBlackjackResponse = zod.object({
+  handId: zod.number(),
+  status: zod.enum(["playing", "settled"]),
+  playerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  dealerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  playerValue: zod.number(),
+  dealerValue: zod
+    .number()
+    .describe(
+      "Value of the dealer's visible cards only, while playing; full value once settled.",
+    ),
+  betAmount: zod
+    .number()
+    .describe("Current bet in cents (doubled after a double-down)."),
+  result: zod.string().nullish(),
+  payout: zod.number().nullish(),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Stand — dealer plays out and the hand settles
+ */
+export const StandBlackjackBody = zod.object({
+  handId: zod.number(),
+});
+
+export const StandBlackjackResponse = zod.object({
+  handId: zod.number(),
+  status: zod.enum(["playing", "settled"]),
+  playerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  dealerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  playerValue: zod.number(),
+  dealerValue: zod
+    .number()
+    .describe(
+      "Value of the dealer's visible cards only, while playing; full value once settled.",
+    ),
+  betAmount: zod
+    .number()
+    .describe("Current bet in cents (doubled after a double-down)."),
+  result: zod.string().nullish(),
+  payout: zod.number().nullish(),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});
+
+/**
+ * @summary Double down — doubles the bet, deals one card, then auto-stands
+ */
+export const DoubleBlackjackBody = zod.object({
+  handId: zod.number(),
+});
+
+export const DoubleBlackjackResponse = zod.object({
+  handId: zod.number(),
+  status: zod.enum(["playing", "settled"]),
+  playerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  dealerCards: zod.array(
+    zod.object({
+      suit: zod.enum(["♠", "♥", "♦", "♣"]),
+      value: zod.string(),
+      numericValue: zod.number(),
+      hidden: zod.boolean().optional(),
+    }),
+  ),
+  playerValue: zod.number(),
+  dealerValue: zod
+    .number()
+    .describe(
+      "Value of the dealer's visible cards only, while playing; full value once settled.",
+    ),
+  betAmount: zod
+    .number()
+    .describe("Current bet in cents (doubled after a double-down)."),
+  result: zod.string().nullish(),
+  payout: zod.number().nullish(),
+  balanceAfter: zod.number(),
+  serverSeedHash: zod.string(),
+  clientSeed: zod.string(),
+  nonce: zod.number(),
+});

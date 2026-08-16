@@ -19,26 +19,24 @@ import { PressableScale } from "@/components/PressableScale";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
 import { DICE_CONFIG } from "@/constants/gameConfig";
+import { rollDice } from "@workspace/api-client-react";
 
 type Prediction = "over" | "under" | number | null;
 
 const ROLL_HISTORY_MAX = 6;
 const HISTORY_COLORS = ["#c59aff", "#00f4fe", "#ff59e3", "#ffd700", "#c59aff", "#00f4fe"];
 
-function getBoostedResult(prediction: Prediction, rollCount: number): number {
-  const isEarly = rollCount <= DICE_CONFIG.earlyBoostRounds;
-  if (isEarly && Math.random() < DICE_CONFIG.earlyBoostWinChance) {
-    if (prediction === "over") return [4, 5, 6][Math.floor(Math.random() * 3)];
-    if (prediction === "under") return [1, 2, 3][Math.floor(Math.random() * 3)];
-    if (typeof prediction === "number") return prediction;
-  }
-  return Math.floor(Math.random() * 6) + 1;
-}
+// Minimum time the dice spends "rolling" before the result is revealed —
+// purely cosmetic pacing, decoupled from how fast the server responds
+// (Promise.all below waits for whichever of {network, this delay} is
+// slower, so a fast reply doesn't make the roll feel instant/jarring and a
+// slow one doesn't extend the animation further than necessary).
+const REVEAL_DELAY_MS = 600;
 
 export default function DiceGameScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const { balance, updateBalance, formatBalance } = useBalance();
+  const { balance, setBalanceFromCents, formatBalance } = useBalance();
   const { playRoll, playWin, playLose } = useGameSound();
 
   const [betAmount, setBetAmount] = useState("50.00");
@@ -51,7 +49,6 @@ export default function DiceGameScreen() {
   const spinAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const resultFade = useRef(new Animated.Value(0)).current;
-  const rollCount = useRef(0);
 
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
   const parsedBet = parseFloat(betAmount) || 0;
@@ -73,41 +70,45 @@ export default function DiceGameScreen() {
       ]),
     ]).start(() => spinAnim.setValue(0));
 
-    rollCount.current += 1;
-    const result = getBoostedResult(prediction, rollCount.current);
+    // The server decides the roll and settles the bet — this screen only
+    // renders whatever it reports back.
+    const predictionType = prediction === "over" || prediction === "under" ? prediction : "exact";
+    const predictionValue = typeof prediction === "number" ? prediction : undefined;
+    const betCents = Math.round(parsedBet * 100);
 
-    setTimeout(() => {
-      setDiceValue(result);
-      setRollHistory(prev => [result, ...prev].slice(0, ROLL_HISTORY_MAX));
+    Promise.all([
+      rollDice({ betAmount: betCents, predictionType, predictionValue }),
+      new Promise((resolve) => setTimeout(resolve, REVEAL_DELAY_MS)),
+    ])
+      .then(([response]) => {
+        setDiceValue(response.roll);
+        setRollHistory(prev => [response.roll, ...prev].slice(0, ROLL_HISTORY_MAX));
+        setBalanceFromCents(response.balanceAfter);
 
-      let win = false;
-      const multiplier =
-        prediction === "over" || prediction === "under"
-          ? DICE_CONFIG.overUnderMultiplier
-          : DICE_CONFIG.exactMultiplier;
+        setLastResult({
+          win: response.won,
+          msg: response.won
+            ? `YOU WIN! +${formatBalance((response.payout - betCents) / 100)}`
+            : `YOU LOSE! -${formatBalance(parsedBet)}`,
+        });
+        Haptics.notificationAsync(
+          response.won
+            ? Haptics.NotificationFeedbackType.Success
+            : Haptics.NotificationFeedbackType.Error
+        );
+        response.won ? playWin() : playLose();
 
-      if (prediction === "over") win = result > 3.5;
-      else if (prediction === "under") win = result < 3.5;
-      else if (typeof prediction === "number") win = result === prediction;
-
-      updateBalance(win ? parsedBet * multiplier - parsedBet : -parsedBet);
-      setLastResult({
-        win,
-        msg: win
-          ? `YOU WIN! +${formatBalance(parsedBet * (multiplier - 1))}`
-          : `YOU LOSE! -${formatBalance(parsedBet)}`,
+        Animated.timing(resultFade, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+        setIsRolling(false);
+      })
+      .catch((err: any) => {
+        spinAnim.stopAnimation();
+        scaleAnim.stopAnimation();
+        setIsRolling(false);
+        setLastResult({ win: false, msg: err?.data?.error || "Bet failed — please try again." });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       });
-      Haptics.notificationAsync(
-        win
-          ? Haptics.NotificationFeedbackType.Success
-          : Haptics.NotificationFeedbackType.Error
-      );
-      win ? playWin() : playLose();
-
-      Animated.timing(resultFade, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-      setIsRolling(false);
-    }, 600);
-  }, [isRolling, prediction, parsedBet, balance, rollCount, spinAnim, scaleAnim, resultFade, updateBalance, formatBalance, playRoll, playWin, playLose]);
+  }, [isRolling, prediction, parsedBet, balance, spinAnim, scaleAnim, resultFade, setBalanceFromCents, formatBalance, playRoll, playWin, playLose]);
 
   const spin = useMemo(
     () => spinAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "720deg"] }),

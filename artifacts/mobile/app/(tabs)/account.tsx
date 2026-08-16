@@ -20,6 +20,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
+import { useGetTransactionHistory } from "@workspace/api-client-react";
 
 type MenuKey =
   | "edit_profile"
@@ -616,6 +617,21 @@ export default function AccountScreen() {
   const { balance, formatBalance } = useBalance();
   const { user, logout, updateProfile } = useAuth();
 
+  const { data: dbTransactions } = useGetTransactionHistory({
+    query: { enabled: !!user },
+  });
+
+  const gamesPlayed = dbTransactions ? dbTransactions.filter((t) => t.type === "bet" || t.type === "win" || t.type === "loss").length : 0;
+  const winsCount = dbTransactions ? dbTransactions.filter((t) => t.type === "win").length : 0;
+  const winRate = gamesPlayed > 0 ? Math.round((winsCount / gamesPlayed) * 100) : 0;
+  const totalWonGamingCents = dbTransactions ? dbTransactions.filter((t) => t.type === "win").reduce((sum, t) => sum + t.amount, 0) : 0;
+
+  const displayGamesPlayed = user ? gamesPlayed.toLocaleString() : "1,248";
+  const displayWinRate = user ? `${winRate}%` : "58%";
+  const displayTotalWon = user 
+    ? `$${(totalWonGamingCents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+    : "$16.4K";
+
   const [activeMenu, setActiveMenu] = useState<MenuKey>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -623,6 +639,13 @@ export default function AccountScreen() {
 
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === "web") {
+      const confirmLogout = window.confirm("Are you sure you want to sign out?");
+      if (confirmLogout) {
+        void logout();
+      }
+      return;
+    }
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -630,7 +653,7 @@ export default function AccountScreen() {
         style: "destructive",
         onPress: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          logout();
+          void logout();
         },
       },
     ]);
@@ -715,9 +738,9 @@ export default function AccountScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           {[
-            { label: "GAMES PLAYED", value: "1,248" },
-            { label: "WIN RATE", value: "58%" },
-            { label: "TOTAL WON", value: "$16.4K" },
+            { label: "GAMES PLAYED", value: displayGamesPlayed },
+            { label: "WIN RATE", value: displayWinRate },
+            { label: "TOTAL WON", value: displayTotalWon },
           ].map((s, i) => (
             <View
               key={i}

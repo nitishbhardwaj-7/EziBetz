@@ -8,3 +8,266 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  username: string;
+  displayName?: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface UserResponse {
+  id: number;
+  email: string;
+  username: string;
+  displayName?: string;
+  balance: number;
+  createdAt: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  refreshToken: string;
+  user: UserResponse;
+}
+
+export interface RefreshRequest {
+  refreshToken: string;
+}
+
+export interface LogoutResult {
+  success: boolean;
+}
+
+export interface PaymentRequest {
+  amount: number;
+}
+
+export interface TransactionResponse {
+  id: number;
+  userId: number;
+  amount: number;
+  type: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface GameSeedResponse {
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface RotateSeedRequest {
+  /** Optional player-supplied seed for the new commitment. A random one is generated if omitted. */
+  clientSeed?: string;
+}
+
+export interface RotateSeedResult {
+  /** The raw seed that was active until now (null if there was no prior seed to reveal). */
+  revealedServerSeed?: string | null;
+  revealedServerSeedHash?: string | null;
+  newServerSeedHash: string;
+  clientSeed: string;
+}
+
+export type DiceRollRequestPredictionType =
+  (typeof DiceRollRequestPredictionType)[keyof typeof DiceRollRequestPredictionType];
+
+export const DiceRollRequestPredictionType = {
+  over: "over",
+  under: "under",
+  exact: "exact",
+} as const;
+
+export interface DiceRollRequest {
+  /**
+   * Bet amount in cents.
+   * @minimum 1
+   */
+  betAmount: number;
+  predictionType: DiceRollRequestPredictionType;
+  /**
+   * Required when predictionType is "exact".
+   * @minimum 1
+   * @maximum 6
+   */
+  predictionValue?: number;
+}
+
+export interface DiceRollResponse {
+  roll: number;
+  won: boolean;
+  /** Total credited back in cents; 0 on a loss. */
+  payout: number;
+  balanceAfter: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export type RouletteSpinRequestBetType =
+  (typeof RouletteSpinRequestBetType)[keyof typeof RouletteSpinRequestBetType];
+
+export const RouletteSpinRequestBetType = {
+  straight: "straight",
+  color: "color",
+  parity: "parity",
+  range: "range",
+  dozen: "dozen",
+} as const;
+
+export interface RouletteSpinRequest {
+  /**
+   * Bet amount in cents.
+   * @minimum 1
+   */
+  betAmount: number;
+  betType: RouletteSpinRequestBetType;
+  /** Meaning depends on betType — straight: "0".."36"; color: "red"|"black"; parity: "even"|"odd"; range: "low"|"high"; dozen: "1st"|"2nd"|"3rd".
+   */
+  betValue: string;
+}
+
+export interface RouletteSpinResponse {
+  number: number;
+  won: boolean;
+  /** Total credited back in cents; 0 on a loss. */
+  payout: number;
+  balanceAfter: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface SlotsSpinRequest {
+  /**
+   * Bet amount in cents.
+   * @minimum 1
+   */
+  betAmount: number;
+}
+
+export interface SlotsSpinResponse {
+  /** The 5 reel results, in order. */
+  symbols: string[];
+  won: boolean;
+  multiplier: number;
+  /** Total credited back in cents; 0 on a loss. */
+  payout: number;
+  balanceAfter: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export type LuckyPickDrawRequestBetType =
+  (typeof LuckyPickDrawRequestBetType)[keyof typeof LuckyPickDrawRequestBetType];
+
+export const LuckyPickDrawRequestBetType = {
+  single: "single",
+  jodi: "jodi",
+  patti: "patti",
+} as const;
+
+/**
+ * Required for "single" and "patti"; ignored for "jodi".
+ */
+export type LuckyPickDrawRequestBetSide =
+  (typeof LuckyPickDrawRequestBetSide)[keyof typeof LuckyPickDrawRequestBetSide];
+
+export const LuckyPickDrawRequestBetSide = {
+  open: "open",
+  close: "close",
+} as const;
+
+export interface LuckyPickDrawRequest {
+  /**
+   * Bet amount in cents.
+   * @minimum 1
+   */
+  betAmount: number;
+  betType: LuckyPickDrawRequestBetType;
+  /** Required for "single" and "patti"; ignored for "jodi". */
+  betSide?: LuckyPickDrawRequestBetSide;
+  /** Meaning depends on betType — single: "0".."9"; jodi: "00".."99"; patti: a 3-digit non-decreasing string, e.g. "025".
+   */
+  pick: string;
+}
+
+export interface LuckyPickDrawResponse {
+  openDigits: number[];
+  openAnk: number;
+  openPatti: string;
+  closeDigits: number[];
+  closeAnk: number;
+  closePatti: string;
+  jodi: string;
+  won: boolean;
+  /** Total credited back in cents; 0 on a loss. */
+  payout: number;
+  balanceAfter: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export type PlayingCardSuit =
+  (typeof PlayingCardSuit)[keyof typeof PlayingCardSuit];
+
+export const PlayingCardSuit = {
+  "♠": "♠",
+  "♥": "♥",
+  "♦": "♦",
+  "♣": "♣",
+} as const;
+
+export interface PlayingCard {
+  suit: PlayingCardSuit;
+  value: string;
+  numericValue: number;
+  hidden?: boolean;
+}
+
+export interface BlackjackDealRequest {
+  /**
+   * Bet amount in cents.
+   * @minimum 1
+   */
+  betAmount: number;
+}
+
+export interface BlackjackHandRequest {
+  handId: number;
+}
+
+export type BlackjackHandResponseStatus =
+  (typeof BlackjackHandResponseStatus)[keyof typeof BlackjackHandResponseStatus];
+
+export const BlackjackHandResponseStatus = {
+  playing: "playing",
+  settled: "settled",
+} as const;
+
+export interface BlackjackHandResponse {
+  handId: number;
+  status: BlackjackHandResponseStatus;
+  playerCards: PlayingCard[];
+  dealerCards: PlayingCard[];
+  playerValue: number;
+  /** Value of the dealer's visible cards only, while playing; full value once settled. */
+  dealerValue: number;
+  /** Current bet in cents (doubled after a double-down). */
+  betAmount: number;
+  result?: string | null;
+  payout?: number | null;
+  balanceAfter: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}

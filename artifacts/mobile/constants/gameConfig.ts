@@ -3,6 +3,11 @@
 // game logic.
 
 // ─── Slot Machine ─────────────────────────────────────────────────────────────
+// The reels no longer decide the outcome locally — the server settles every
+// spin (see artifacts/api-server/src/lib/game-config.ts). symbolWeights and
+// symbolMultipliers below are display-only and must stay numerically
+// identical to the server's copy; spinDurationBase/reelStopInterval are
+// purely cosmetic (how the reel-stop animation is paced).
 export const SLOT_CONFIG = {
   // Draw weights for [Diamond, Lightning, Star, Rocket, Clover, Crown, Cards]
   // Higher = more common
@@ -14,9 +19,6 @@ export const SLOT_CONFIG = {
   } as const,
   spinDurationBase: 1800,  // ms before first reel stops
   reelStopInterval: 320,   // ms between consecutive reel stops
-  // Early boost: first N spins favour 3-of-a-kind
-  earlyBoostRounds: 10,
-  earlyBoostWinChance: 0.55, // 55% chance of at least 3-of-a-kind for new players
 };
 
 // ─── Russian Roulette ─────────────────────────────────────────────────────────
@@ -27,22 +29,27 @@ export const ROULETTE_CONFIG = {
 };
 
 // ─── Dice ─────────────────────────────────────────────────────────────────────
+// The dice screen no longer decides outcomes locally — the server settles
+// every bet (see artifacts/api-server/src/lib/game-config.ts) and these
+// values are display-only. Keep them numerically identical to the server's
+// copy, or the odds shown here will lie about what actually gets paid.
 export const DICE_CONFIG = {
   overUnderMultiplier: 2.1,   // over/under 3.5
   underMultiplier: 1.8,       // under 3.5 (slightly worse)
   exactMultiplier: 6.0,       // exact number
-  // Early boost: first N rolls bias toward the player's prediction
-  earlyBoostRounds: 8,
-  earlyBoostWinChance: 0.62,  // 62 % win rate for first earlyBoostRounds rolls
 };
 
 // ─── Blackjack ────────────────────────────────────────────────────────────────
+// Hands are dealt and settled server-side (artifacts/api-server/src/routes/blackjack.ts).
+// Kept here as the documented source for the odds printed on the felt table.
 export const BLACKJACK_CONFIG = {
   blackjackPayout: 1.5,   // 3:2
   dealerStandsOn: 17,
 };
 
 // ─── Lucky Pick (ex-Matka) ────────────────────────────────────────────────────
+// Draws are settled server-side (artifacts/api-server/src/routes/games.ts).
+// Kept here as the documented source for the payout labels shown in the UI.
 export const LUCKY_PICK_CONFIG = {
   singleMultiplier: 9,
   jodiMultiplier: 90,

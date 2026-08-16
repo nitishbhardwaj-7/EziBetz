@@ -14,23 +14,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { GameHeader } from "@/components/GameHeader";
 import { PressableScale } from "@/components/PressableScale";
-import {
-  Card,
-  PlayingCard,
-  createDeck,
-  handValue,
-  shuffleDeck,
-} from "@/components/PlayingCard";
+import { PlayingCard, type Card } from "@/components/PlayingCard";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
-import { BLACKJACK_CONFIG } from "@/constants/gameConfig";
+import {
+  dealBlackjack,
+  hitBlackjack,
+  standBlackjack,
+  doubleBlackjack,
+  type BlackjackHandResponse,
+} from "@workspace/api-client-react";
 
 type GameState = "betting" | "playing" | "result";
-
-function dealCard(deck: Card[]): [Card, Card[]] {
-  const [top, ...rest] = deck;
-  return [top, rest];
-}
 
 // Real casino chip denominations + colors
 const CHIPS = [
@@ -42,155 +37,121 @@ const CHIPS = [
   { value: 500, bg: "#f59e0b", border: "#fde68a", label: "$500" },
 ];
 
+// The server is the only thing that knows how a hand actually resolved
+// (artifacts/api-server/src/routes/blackjack.ts) — this just picks the
+// matching table talk for its `result` field.
+function resultMessage(result: string | null | undefined, netCents: number): string {
+  switch (result) {
+    case "player_bust": return "BUST! YOU LOSE";
+    case "dealer_bust": return "DEALER BUSTS — YOU WIN!";
+    case "blackjack": return "BLACKJACK! 3:2 PAYOUT!";
+    case "player_win": return "YOU WIN!";
+    case "push": return "PUSH — BET RETURNED";
+    case "dealer_win": return "DEALER WINS";
+    default: return netCents >= 0 ? "YOU WIN!" : "YOU LOSE";
+  }
+}
+
 export default function BlackjackGameScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const { balance, updateBalance, formatBalance } = useBalance();
+  const { balance, setBalanceFromCents, formatBalance } = useBalance();
   const { playDeal, playClick, playWin, playLose, playJackpot } = useGameSound();
 
   const [bet, setBet] = useState(25);
   const [gameState, setGameState] = useState<GameState>("betting");
-  const [deck, setDeck] = useState<Card[]>([]);
+  const [handId, setHandId] = useState<number | null>(null);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
+  const [playerVal, setPlayerVal] = useState(0);
+  const [dealerVisible, setDealerVisible] = useState(0);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [winAmount, setWinAmount] = useState<number | null>(null);
+  const [isActing, setIsActing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const resultAnim = useRef(new Animated.Value(0)).current;
 
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
-  const showResult = useCallback((msg: string, win: boolean) => {
-    setResultMsg(msg);
-    resultAnim.setValue(0);
-    Animated.spring(resultAnim, { toValue: 1, friction: 7, tension: 300, useNativeDriver: true }).start();
-    if (win) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
-    else { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); }
-  }, [resultAnim]);
+  // Applies whatever the server just returned — deal/hit/stand/double all
+  // return the same hand shape, settled or not, so one handler covers all four.
+  const applyHandResponse = useCallback((response: BlackjackHandResponse) => {
+    setHandId(response.handId);
+    setPlayerHand(response.playerCards);
+    setDealerHand(response.dealerCards);
+    setPlayerVal(response.playerValue);
+    setDealerVisible(response.dealerValue);
+    setBet(response.betAmount / 100);
+    setBalanceFromCents(response.balanceAfter);
 
-  // endGame receives the ACTUAL bet amount to avoid stale closure issues
-  const endGame = useCallback(
-    (dealer: Card[], player: Card[], actualBet: number, reason: string) => {
-      const pv = handValue(player);
-      const dv = handValue(dealer);
-      const isBlackjack = reason === "blackjack";
-      let msg = "";
-      let payout = 0;
-
-      if (pv > 21) {
-        msg = "BUST! YOU LOSE"; payout = 0;
-      } else if (dv > 21) {
-        msg = "DEALER BUSTS — YOU WIN!"; payout = actualBet * 2; updateBalance(payout);
-      } else if (isBlackjack) {
-        msg = "BLACKJACK! 3:2 PAYOUT!";
-        payout = actualBet + Math.floor(actualBet * BLACKJACK_CONFIG.blackjackPayout);
-        updateBalance(payout);
-      } else if (pv > dv) {
-        msg = "YOU WIN!"; payout = actualBet * 2; updateBalance(payout);
-      } else if (pv === dv) {
-        msg = "PUSH — BET RETURNED"; payout = actualBet; updateBalance(payout);
-      } else {
-        msg = "DEALER WINS"; payout = 0;
-      }
-
-      setWinAmount(payout - actualBet);
+    if (response.status === "settled") {
+      const netCents = (response.payout ?? 0) - response.betAmount;
+      const win = netCents >= 0;
+      setWinAmount(netCents / 100);
       setGameState("result");
-      showResult(msg, payout >= actualBet);
-      if (payout > actualBet * 1.4) playJackpot();
-      else if (payout >= actualBet) playWin();
+      const msg = resultMessage(response.result, netCents);
+      setResultMsg(msg);
+      resultAnim.setValue(0);
+      Animated.spring(resultAnim, { toValue: 1, friction: 7, tension: 300, useNativeDriver: true }).start();
+      Haptics.notificationAsync(win ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
+      if ((response.payout ?? 0) > response.betAmount * 1.4) playJackpot();
+      else if (win) playWin();
       else playLose();
+    } else {
+      setGameState("playing");
+    }
+  }, [resultAnim, playJackpot, playWin, playLose, setBalanceFromCents]);
+
+  const runAction = useCallback(
+    (action: () => Promise<BlackjackHandResponse>, failureMessage: string) => {
+      if (isActing) return;
+      setIsActing(true);
+      setActionError(null);
+      action()
+        .then(applyHandResponse)
+        .catch((err: any) => {
+          setActionError(err?.data?.error || failureMessage);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        })
+        .finally(() => setIsActing(false));
     },
-    [updateBalance, showResult, playJackpot, playWin, playLose]
+    [isActing, applyHandResponse]
   );
 
   const startGame = useCallback(() => {
-    if (bet > balance || bet <= 0) return;
+    if (bet > balance || bet <= 0 || isActing) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     playDeal();
-
-    let d = shuffleDeck(createDeck());
-    let c1: Card, c2: Card, c3: Card, c4: Card;
-    [c1, d] = dealCard(d); [c2, d] = dealCard(d);
-    [c3, d] = dealCard(d); [c4, d] = dealCard(d);
-
-    const dealer: Card[] = [c2, { ...c4, hidden: true }];
-    const player: Card[] = [c1, c3];
-
-    setDeck(d); setPlayerHand(player); setDealerHand(dealer);
-    setResultMsg(null); setWinAmount(null);
-    updateBalance(-bet);
-    setGameState("playing");
-
-    if (handValue(player) === 21) {
-      const fullDealer = [c2, c4];
-      setDealerHand(fullDealer);
-      endGame(fullDealer, player, bet, "blackjack");
-    }
-  }, [bet, balance, updateBalance, playDeal, endGame]);
+    setResultMsg(null);
+    setWinAmount(null);
+    runAction(() => dealBlackjack({ betAmount: Math.round(bet * 100) }), "Failed to deal — please try again.");
+  }, [bet, balance, isActing, playDeal, runAction]);
 
   const hit = useCallback(() => {
-    if (gameState !== "playing") return;
+    if (gameState !== "playing" || !handId || isActing) return;
     playClick();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    let d = [...deck]; let card: Card;
-    [card, d] = dealCard(d);
-    const newHand = [...playerHand, card];
-    setDeck(d); setPlayerHand(newHand);
-    if (handValue(newHand) > 21) {
-      const rev = dealerHand.map(c => ({ ...c, hidden: false }));
-      setDealerHand(rev);
-      setWinAmount(-bet); setGameState("result");
-      showResult("BUST! YOU LOSE", false);
-      playLose();
-    }
-  }, [gameState, deck, playerHand, dealerHand, bet, playClick, playLose, showResult]);
+    runAction(() => hitBlackjack({ handId }), "Hit failed — please try again.");
+  }, [gameState, handId, isActing, playClick, runAction]);
 
   const stand = useCallback(() => {
-    if (gameState !== "playing") return;
+    if (gameState !== "playing" || !handId || isActing) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    let rev = dealerHand.map(c => ({ ...c, hidden: false }));
-    let d = [...deck];
-    while (handValue(rev) < BLACKJACK_CONFIG.dealerStandsOn) {
-      let card: Card; [card, d] = dealCard(d); rev = [...rev, card];
-    }
-    setDeck(d); setDealerHand(rev);
-    endGame(rev, playerHand, bet, "stand");
-  }, [gameState, deck, dealerHand, playerHand, bet, endGame]);
+    runAction(() => standBlackjack({ handId }), "Stand failed — please try again.");
+  }, [gameState, handId, isActing, runAction]);
 
   const doubleDown = useCallback(() => {
-    if (gameState !== "playing" || bet > balance) return;
+    if (gameState !== "playing" || !handId || isActing || bet > balance) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const doubleBet = bet * 2;
-    updateBalance(-bet); // deduct additional bet
-    setBet(doubleBet);
-    let d = [...deck]; let card: Card;
-    [card, d] = dealCard(d);
-    const newHand = [...playerHand, card];
-    setDeck(d); setPlayerHand(newHand);
-
-    if (handValue(newHand) > 21) {
-      const rev = dealerHand.map(c => ({ ...c, hidden: false }));
-      setDealerHand(rev);
-      setWinAmount(-doubleBet); setGameState("result");
-      showResult("BUST! YOU LOSE", false);
-      playLose();
-    } else {
-      let rev = dealerHand.map(c => ({ ...c, hidden: false }));
-      while (handValue(rev) < BLACKJACK_CONFIG.dealerStandsOn) {
-        let c: Card; [c, d] = dealCard(d); rev = [...rev, c];
-      }
-      setDeck(d); setDealerHand(rev);
-      endGame(rev, newHand, doubleBet, "double");
-    }
-  }, [gameState, deck, playerHand, dealerHand, bet, balance, updateBalance, endGame, showResult, playLose]);
+    runAction(() => doubleBlackjack({ handId }), "Double failed — please try again.");
+  }, [gameState, handId, isActing, bet, balance, runAction]);
 
   const resetGame = useCallback(() => {
     setGameState("betting"); setPlayerHand([]); setDealerHand([]);
-    setResultMsg(null); setWinAmount(null);
+    setResultMsg(null); setWinAmount(null); setHandId(null); setActionError(null);
     if (bet > balance) setBet(10);
   }, [bet, balance]);
 
-  const playerVal = handValue(playerHand);
-  const dealerVisible = handValue(dealerHand.filter(c => !c.hidden));
   const isWin = (winAmount ?? -1) >= 0;
 
   return (
@@ -365,7 +326,7 @@ export default function BlackjackGameScreen() {
                   );
                 })}
               </View>
-              <PressableScale onPress={startGame} disabled={bet > balance} scale={0.96}>
+              <PressableScale onPress={startGame} disabled={bet > balance || isActing} scale={0.96}>
                 <LinearGradient
                   colors={bet > balance ? [colors.surfaceBright, colors.surfaceBright] : ["#9547f7", "#c59aff"]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -374,18 +335,22 @@ export default function BlackjackGameScreen() {
                   <View style={styles.btnGloss} />
                   <MaterialCommunityIcons name="cards" size={20} color={bet > balance ? colors.mutedForeground : "#fff"} />
                   <Text style={[styles.mainBtnText, { color: bet > balance ? colors.mutedForeground : "#fff" }]}>
-                    DEAL CARDS
+                    {isActing ? "DEALING..." : "DEAL CARDS"}
                   </Text>
                 </LinearGradient>
               </PressableScale>
             </>
           )}
 
+          {actionError && (
+            <Text style={styles.actionErrorText}>{actionError}</Text>
+          )}
+
           {gameState === "playing" && (
             <View style={styles.actionBar}>
               <PressableScale
                 onPress={doubleDown}
-                disabled={bet > balance}
+                disabled={bet > balance || isActing || playerHand.length !== 2}
                 style={[styles.actionBtn, { borderColor: `${colors.primary}40`, borderWidth: 1.5, flex: 1 }]}
               >
                 <Text style={[styles.actionSub, { color: colors.mutedForeground }]}>Double</Text>
@@ -394,13 +359,14 @@ export default function BlackjackGameScreen() {
 
               <PressableScale
                 onPress={stand}
+                disabled={isActing}
                 style={[styles.actionBtn, { borderColor: "#ef4444", borderWidth: 1.5, flex: 1 }]}
               >
                 <Text style={[styles.actionSub, { color: colors.mutedForeground }]}>Stop</Text>
                 <Text style={[styles.actionMain, { color: "#ef4444" }]}>STAND</Text>
               </PressableScale>
 
-              <PressableScale onPress={hit} scale={0.95} containerStyle={{ flex: 1.5 }}>
+              <PressableScale onPress={hit} disabled={isActing} scale={0.95} containerStyle={{ flex: 1.5 }}>
                 <LinearGradient
                   colors={["#22c55e", "#16a34a"]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -614,6 +580,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     marginTop: 2,
+  },
+  actionErrorText: {
+    color: "#ef4444",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
   },
 
   // ── Controls ──

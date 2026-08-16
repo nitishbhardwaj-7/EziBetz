@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { GameHeader } from "@/components/GameHeader";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
+import { drawLuckyPick } from "@workspace/api-client-react";
 
 // ─── Lucky Pick Logic ────────────────────────────────────────────────────────────
 
@@ -43,32 +44,6 @@ interface HistoryEntry {
   result: LuckyPickResult;
 }
 
-function drawSet(): { digits: number[]; ank: number; patti: string } {
-  const d = [
-    Math.floor(Math.random() * 10),
-    Math.floor(Math.random() * 10),
-    Math.floor(Math.random() * 10),
-  ];
-  const sum = d[0] + d[1] + d[2];
-  const ank = sum % 10;
-  const patti = [...d].sort((a, b) => a - b).join("");
-  return { digits: d, ank, patti };
-}
-
-function drawLuckyPick(): LuckyPickResult {
-  const open = drawSet();
-  const close = drawSet();
-  return {
-    openDigits: open.digits,
-    openAnk: open.ank,
-    openPatti: open.patti,
-    closeDigits: close.digits,
-    closeAnk: close.ank,
-    closePatti: close.patti,
-    jodi: `${open.ank}${close.ank}`,
-  };
-}
-
 /** All valid sorted 3-digit pattis for a given ank (sum % 10 === ank) */
 function getPattisByAnk(ank: number): string[] {
   const result: string[] = [];
@@ -84,27 +59,8 @@ function getPattisByAnk(ank: number): string[] {
   return result;
 }
 
-function checkWin(
-  r: LuckyPickResult,
-  betType: BetType,
-  betSide: BetSide,
-  pick: string
-): { won: boolean; multiplier: number } {
-  if (betType === "single") {
-    const digit = parseInt(pick);
-    const won = betSide === "open" ? r.openAnk === digit : r.closeAnk === digit;
-    return { won, multiplier: 9 };
-  }
-  if (betType === "jodi") {
-    return { won: r.jodi === pick.padStart(2, "0"), multiplier: 90 };
-  }
-  if (betType === "patti") {
-    const won =
-      betSide === "open" ? r.openPatti === pick : r.closePatti === pick;
-    return { won, multiplier: 150 };
-  }
-  return { won: false, multiplier: 0 };
-}
+// Win/loss and payout are decided server-side (artifacts/api-server/src/routes/games.ts)
+// using the same rules — this screen only picks a bet and plays the reveal.
 
 // ─── Lucky Pick Component ───────────────────────────────────────────────────────────────
 
@@ -114,7 +70,7 @@ const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 export default function LuckyPickScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const { balance, updateBalance, formatBalance } = useBalance();
+  const { balance, setBalanceFromCents, formatBalance } = useBalance();
 
   const { playDrum, playReveal, playWin, playLose, playJackpot } = useGameSound();
   const [betType, setBetType] = useState<BetType>("single");
@@ -131,6 +87,7 @@ export default function LuckyPickScreen() {
   const [lastWon, setLastWon] = useState<boolean | null>(null);
   const [lastPayout, setLastPayout] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [betError, setBetError] = useState<string | null>(null);
 
   // Animated values for each revealed digit
   const openFade = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
@@ -179,68 +136,91 @@ export default function LuckyPickScreen() {
     setIsPlaying(true);
     setResult(null);
     setLastWon(null);
+    setBetError(null);
     resetFades();
 
-    updateBalance(-amount);
+    try {
+      // The server draws and settles the bet up front; everything below is
+      // just the reveal animation for a result that's already final.
+      const response = await drawLuckyPick({
+        betAmount: Math.round(amount * 100),
+        betType,
+        betSide: betType === "jodi" ? undefined : betSide,
+        pick,
+      });
 
-    const drawn = drawLuckyPick();
+      const drawn: LuckyPickResult = {
+        openDigits: response.openDigits,
+        openAnk: response.openAnk,
+        openPatti: response.openPatti,
+        closeDigits: response.closeDigits,
+        closeAnk: response.closeAnk,
+        closePatti: response.closePatti,
+        jodi: response.jodi,
+      };
 
-    // Phase 1: reveal open digits one by one
-    setPhase("open");
-    await delay(400);
-    for (let i = 0; i < 3; i++) {
-      await delay(450);
-      Animated.spring(openFade[i], { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      playReveal();
-    }
-    await delay(350);
-    Animated.spring(ankFadeOpen, { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
+      // Phase 1: reveal open digits one by one
+      setPhase("open");
+      await delay(400);
+      for (let i = 0; i < 3; i++) {
+        await delay(450);
+        Animated.spring(openFade[i], { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        playReveal();
+      }
+      await delay(350);
+      Animated.spring(ankFadeOpen, { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
 
-    // Phase 2: reveal close digits
-    await delay(600);
-    setPhase("close");
-    for (let i = 0; i < 3; i++) {
-      await delay(450);
-      Animated.spring(closeFade[i], { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      playReveal();
-    }
-    await delay(350);
-    Animated.spring(ankFadeClose, { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
+      // Phase 2: reveal close digits
+      await delay(600);
+      setPhase("close");
+      for (let i = 0; i < 3; i++) {
+        await delay(450);
+        Animated.spring(closeFade[i], { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        playReveal();
+      }
+      await delay(350);
+      Animated.spring(ankFadeClose, { toValue: 1, useNativeDriver: true, tension: 120, friction: 7 }).start();
 
-    // Phase 3: evaluate and show result
-    await delay(500);
-    setResult(drawn);
-    const { won, multiplier } = checkWin(drawn, betType, betSide, pick);
-    const payout = won ? amount * multiplier : 0;
+      // Phase 3: reveal the already-decided result
+      await delay(500);
+      setResult(drawn);
+      setBalanceFromCents(response.balanceAfter);
+      const won = response.won;
+      const payout = response.payout / 100;
 
-    setLastWon(won);
-    setLastPayout(payout);
-    if (won) {
-      updateBalance(payout);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (multiplier >= 90) playJackpot(); else playWin();
-    } else {
+      setLastWon(won);
+      setLastPayout(payout);
+      if (won) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (betType !== "single") playJackpot(); else playWin();
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playLose();
+        Animated.sequence([
+          Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 6, duration: 60, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -6, duration: 60, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+        ]).start();
+      }
+
+      Animated.spring(resultFade, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
+      setPhase("done");
+
+      setHistory((prev) => [
+        { betType, betSide, pick, amount, won, payout, result: drawn },
+        ...prev.slice(0, 9),
+      ]);
+    } catch (err: any) {
+      setPhase("idle");
+      setBetError(err?.data?.error || "Bet failed — please try again.");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      playLose();
-      Animated.sequence([
-        Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 6, duration: 60, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: -6, duration: 60, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
-      ]).start();
+    } finally {
+      setIsPlaying(false);
     }
-
-    Animated.spring(resultFade, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
-    setPhase("done");
-
-    setHistory((prev) => [
-      { betType, betSide, pick, amount, won, payout, result: drawn },
-      ...prev.slice(0, 9),
-    ]);
-    setIsPlaying(false);
   };
 
   const resetSelection = () => {
@@ -691,6 +671,11 @@ export default function LuckyPickScreen() {
         </View>
 
         {/* Place Bet */}
+        {betError && (
+          <Text style={{ color: colors.destructive, fontSize: 12, fontWeight: "700", textAlign: "center" }}>
+            {betError}
+          </Text>
+        )}
         <TouchableOpacity onPress={placeBet} disabled={!canBet() || isPlaying} activeOpacity={0.85}>
           <LinearGradient
             colors={

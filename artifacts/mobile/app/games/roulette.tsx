@@ -18,6 +18,7 @@ import { GameHeader } from "@/components/GameHeader";
 import { PressableScale } from "@/components/PressableScale";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
+import { spinRoulette } from "@workspace/api-client-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,27 +54,8 @@ type BetType = "straight" | "color" | "parity" | "range" | "dozen";
 
 interface Bet { type: BetType; value: string }
 
-function evaluateBet(bet: Bet, result: number): { win: boolean; multiplier: number } {
-  const { type, value } = bet;
-  switch (type) {
-    case "straight":
-      return { win: result === Number(value), multiplier: 36 };   // 35:1
-    case "color":
-      return { win: result !== 0 && getColor(result) === value, multiplier: 2 }; // 1:1
-    case "parity":
-      if (result === 0) return { win: false, multiplier: 0 };
-      return { win: (result % 2 === 0) === (value === "even"), multiplier: 2 };
-    case "range":
-      if (result === 0) return { win: false, multiplier: 0 };
-      return { win: value === "low" ? result <= 18 : result >= 19, multiplier: 2 };
-    case "dozen":
-      if (result === 0) return { win: false, multiplier: 0 };
-      const dz = result <= 12 ? "1st" : result <= 24 ? "2nd" : "3rd";
-      return { win: dz === value, multiplier: 3 };                // 2:1
-    default:
-      return { win: false, multiplier: 0 };
-  }
-}
+// Win/loss and payout are decided server-side (artifacts/api-server/src/routes/games.ts)
+// using the same rules — this screen only picks a bet and renders the result.
 
 // ─── Board layout helpers ─────────────────────────────────────────────────────
 
@@ -96,7 +78,7 @@ const POCKET_SZ  = 22;
 export default function RouletteGameScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const { balance, updateBalance, formatBalance } = useBalance();
+  const { balance, setBalanceFromCents, formatBalance } = useBalance();
   const { playSpin, playWin, playLose, playClick, playDeal } = useGameSound();
 
   const [selectedBet, setSelectedBet] = useState<Bet | null>(null);
@@ -106,6 +88,7 @@ export default function RouletteGameScreen() {
     number: number; win: boolean; netGain: number; msg: string;
   } | null>(null);
   const [history, setHistory] = useState<Array<{n: number; color: string}>>([]);
+  const [betError, setBetError] = useState<string | null>(null);
 
   const rotateAnim      = useRef(new Animated.Value(0)).current;
   const resultAnim      = useRef(new Animated.Value(0)).current;
@@ -145,60 +128,71 @@ export default function RouletteGameScreen() {
     playSpin();
     setIsSpinning(true);
     setResult(null);
-    updateBalance(-betAmount);
+    setBetError(null);
 
-    // Pick result
-    const resultNum = Math.floor(Math.random() * 37); // 0–36
-    const wi = WHEEL_ORDER.indexOf(resultNum);         // pocket index on wheel
+    const betCents = Math.round(betAmount * 100);
 
-    // Rotation to bring pocket wi to top (0°):
-    // pocket wi is at wi*(360/37)° from top in wheel frame
-    // rotating clockwise by θ = n*360 − wi*(360/37) lands it at top
-    const n = 5 + Math.floor(Math.random() * 4);
-    const toAdd = n * 360 - wi * (360 / 37);
+    // The server decides the winning pocket and settles the bet before the
+    // wheel ever starts turning — the animation below just dramatizes a
+    // result that's already final, it doesn't produce one.
+    spinRoulette({ betAmount: betCents, betType: selectedBet.type, betValue: selectedBet.value })
+      .then((response) => {
+        const resultNum = response.number;
+        const wi = WHEEL_ORDER.indexOf(resultNum); // pocket index on wheel
 
-    const startVal = cumulativeRot.current;
-    const endVal   = startVal + toAdd;
-    cumulativeRot.current = endVal;
+        // Rotation to bring pocket wi to top (0°):
+        // pocket wi is at wi*(360/37)° from top in wheel frame
+        // rotating clockwise by θ = n*360 − wi*(360/37) lands it at top
+        const n = 5 + Math.floor(Math.random() * 4);
+        const toAdd = n * 360 - wi * (360 / 37);
 
-    rotateAnim.setValue(startVal);
-    Animated.timing(rotateAnim, {
-      toValue: endVal,
-      duration: 3200 + Math.random() * 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      const { win, multiplier } = evaluateBet(selectedBet, resultNum);
-      const netGain = win ? betAmount * multiplier - betAmount : 0;
+        const startVal = cumulativeRot.current;
+        const endVal   = startVal + toAdd;
+        cumulativeRot.current = endVal;
 
-      if (win) {
-        updateBalance(betAmount * multiplier);
-        playWin();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        playLose();
+        rotateAnim.setValue(startVal);
+        Animated.timing(rotateAnim, {
+          toValue: endVal,
+          duration: 3200 + Math.random() * 800,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start(() => {
+          setBalanceFromCents(response.balanceAfter);
+          const netGain = response.won ? response.payout - betCents : -betCents;
+
+          if (response.won) {
+            playWin();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } else {
+            playLose();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          }
+
+          // Animate result banner
+          resultAnim.setValue(0);
+          Animated.spring(resultAnim, {
+            toValue: 1, friction: 7, tension: 300, useNativeDriver: true,
+          }).start();
+
+          const numColor = getColor(resultNum);
+          setResult({
+            number: resultNum, win: response.won,
+            netGain: netGain / 100,
+            msg: response.won
+              ? `${resultNum} (${numColor.toUpperCase()}) — +${formatBalance(netGain / 100)}`
+              : `${resultNum} (${numColor.toUpperCase()}) — Better luck next time`,
+          });
+          setHistory(h => [{n: resultNum, color: numColor}, ...h].slice(0, 14));
+          setIsSpinning(false);
+        });
+      })
+      .catch((err: any) => {
+        setIsSpinning(false);
+        setBetError(err?.data?.error || "Bet failed — please try again.");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-
-      // Animate result banner
-      resultAnim.setValue(0);
-      Animated.spring(resultAnim, {
-        toValue: 1, friction: 7, tension: 300, useNativeDriver: true,
-      }).start();
-
-      const numColor = getColor(resultNum);
-      setResult({
-        number: resultNum, win,
-        netGain: win ? netGain : -betAmount,
-        msg: win
-          ? `${resultNum} (${numColor.toUpperCase()}) — +${formatBalance(netGain)}`
-          : `${resultNum} (${numColor.toUpperCase()}) — Better luck next time`,
       });
-      setHistory(h => [{n: resultNum, color: numColor}, ...h].slice(0, 14));
-      setIsSpinning(false);
-    });
-  }, [selectedBet, isSpinning, betAmount, balance, updateBalance,
-      playSpin, playWin, playLose, playClick, rotateAnim, resultAnim, formatBalance]);
+  }, [selectedBet, isSpinning, betAmount, balance, setBalanceFromCents,
+      playSpin, playWin, playLose, rotateAnim, resultAnim, formatBalance]);
 
   // ── Bet label helper ───────────────────────────────────────────────────────
   const betLabel = (() => {
@@ -510,6 +504,10 @@ export default function RouletteGameScreen() {
               </PressableScale>
             )}
           </View>
+
+          {betError && (
+            <Text style={[styles.betErrorText, { color: "#ef4444" }]}>{betError}</Text>
+          )}
 
           <PressableScale
             onPress={spin}
@@ -866,6 +864,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
+  },
+  betErrorText: {
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
   },
   spinBtn: {
     flexDirection: "row",

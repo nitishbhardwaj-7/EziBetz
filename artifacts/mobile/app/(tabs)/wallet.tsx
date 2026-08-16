@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/context/AuthContext";
+import { useGetTransactionHistory } from "@workspace/api-client-react";
 
 interface Transaction {
   id: string;
@@ -284,49 +286,51 @@ export default function WalletScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const { balance, updateBalance, formatBalance } = useBalance();
+  const { isAuthenticated } = useAuth();
   const [activeFilter, setActiveFilter] = useState<"all" | "wins" | "losses">("all");
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
 
+  const { data: dbTransactions, refetch: refetchTransactions } = useGetTransactionHistory({
+    query: { enabled: isAuthenticated },
+  });
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void refetchTransactions();
+    }
+  }, [balance, isAuthenticated]);
+
+  const displayTransactions = isAuthenticated && dbTransactions
+    ? dbTransactions.map((t: any) => {
+        const amountNum = t.amount / 100;
+        const typeMapped = t.type === "bet" ? "loss" : (t.type === "win" ? "win" : t.type);
+        return {
+          id: t.id.toString(),
+          type: typeMapped as any,
+          label: t.type === "bet" ? "Bet Placement" : (t.type.charAt(0).toUpperCase() + t.type.slice(1)),
+          amount: amountNum >= 0 ? `+$${amountNum.toFixed(2)}` : `-$${Math.abs(amountNum).toFixed(2)}`,
+          amountNum,
+          time: new Date(t.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+      })
+    : transactions;
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 80;
 
-  const filtered = transactions.filter((t) => {
+  const filtered = displayTransactions.filter((t) => {
     if (activeFilter === "wins") return t.type === "win";
     if (activeFilter === "losses") return t.type === "loss";
     return true;
   });
 
   const handleDeposit = (amount: number) => {
-    updateBalance(amount);
-    const id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
-    setTransactions((prev) => [
-      {
-        id,
-        type: "deposit",
-        label: "Deposit",
-        amount: `+$${amount.toFixed(2)}`,
-        amountNum: amount,
-        time: "just now",
-      },
-      ...prev,
-    ]);
+    void updateBalance(amount);
   };
 
   const handleWithdraw = (amount: number) => {
-    updateBalance(-amount);
-    const id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
-    setTransactions((prev) => [
-      {
-        id,
-        type: "withdrawal",
-        label: "Withdrawal",
-        amount: `-$${amount.toFixed(2)}`,
-        amountNum: -amount,
-        time: "just now",
-      },
-      ...prev,
-    ]);
+    void updateBalance(-amount);
   };
 
   return (

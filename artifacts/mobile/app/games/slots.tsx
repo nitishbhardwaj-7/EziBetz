@@ -16,6 +16,7 @@ import { GameHeader } from "@/components/GameHeader";
 import { useBalance } from "@/context/BalanceContext";
 import { useColors } from "@/hooks/useColors";
 import { SLOT_CONFIG } from "@/constants/gameConfig";
+import { spinSlots, type SlotsSpinResponse } from "@workspace/api-client-react";
 
 interface SlotSymbol {
   icon: string;
@@ -52,28 +53,25 @@ const VISIBLE = 3;
 
 type ReelDisplay = [SlotSymbol, SlotSymbol, SlotSymbol];
 
-function checkWin(reels: SlotSymbol[]): { win: boolean; multiplier: number; msg: string; winIndices: boolean[] } {
-  const counts: Record<string, number[]> = {};
-  reels.forEach((r, i) => {
-    if (!counts[r.name]) counts[r.name] = [];
-    counts[r.name].push(i);
-  });
+// Win/loss and the payout multiplier are decided server-side
+// (artifacts/api-server/src/routes/games.ts) — this only figures out which
+// reels to highlight and what to say, from the server's own symbol list.
+function describeResult(symbols: string[], won: boolean): { msg: string; winIndices: boolean[] } {
+  if (!won) return { msg: "TRY AGAIN!", winIndices: Array(NUM_REELS).fill(false) };
 
+  const counts: Record<string, number[]> = {};
+  symbols.forEach((name, i) => {
+    if (!counts[name]) counts[name] = [];
+    counts[name].push(i);
+  });
   let best = { count: 0, name: "" };
   for (const [name, idxs] of Object.entries(counts)) {
     if (idxs.length > best.count) best = { count: idxs.length, name };
   }
-
-  if (best.count >= 3) {
-    const sym = SYMBOLS.find(s => s.name === best.name)!;
-    const mult = SLOT_CONFIG.matchMultipliers[best.count as 3 | 4 | 5] ?? 1;
-    const finalMult = Math.floor(sym.multiplier * mult);
-    const winIndices = reels.map(r => r.name === best.name);
-    let msg = best.count === 5 ? `JACKPOT! ${sym.name.toUpperCase()}!` :
+  const winIndices = symbols.map((n) => n === best.name);
+  const msg = best.count === 5 ? `JACKPOT! ${best.name.toUpperCase()}!` :
               best.count === 4 ? "4 OF A KIND!" : "3 OF A KIND!";
-    return { win: true, multiplier: finalMult, msg, winIndices };
-  }
-  return { win: false, multiplier: 0, msg: "TRY AGAIN!", winIndices: Array(NUM_REELS).fill(false) };
+  return { msg, winIndices };
 }
 
 const PAYTABLE = [
@@ -85,7 +83,7 @@ const PAYTABLE = [
 export default function SlotsGameScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const { balance, updateBalance, formatBalance } = useBalance();
+  const { balance, setBalanceFromCents, formatBalance } = useBalance();
   const { playSpin, playWin, playJackpot, playLose } = useGameSound();
 
   const [betAmount, setBetAmount] = useState(100);
@@ -116,7 +114,7 @@ export default function SlotsGameScreen() {
     idx: number,
     finalSym: SlotSymbol,
     allDone: boolean,
-    finalReels: SlotSymbol[],
+    response: SlotsSpinResponse | null,
   ) => {
     spinningMask.current[idx] = false;
     const above = weightedRandom();
@@ -136,22 +134,21 @@ export default function SlotsGameScreen() {
     }).start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    if (allDone) {
-      // All stopped — evaluate
+    if (allDone && response) {
+      // All stopped — reveal the server's already-settled result.
       if (spinIntervalRef.current) {
         clearInterval(spinIntervalRef.current);
         spinIntervalRef.current = null;
       }
-      const result = checkWin(finalReels);
-      setWinIndices(result.winIndices);
-      if (result.win) {
-        const payout = betAmount * result.multiplier;
-        updateBalance(payout);
-        setLastResult({ win: true, msg: result.msg, payout: formatBalance(payout) });
+      setBalanceFromCents(response.balanceAfter);
+      const { msg, winIndices } = describeResult(response.symbols, response.won);
+      setWinIndices(winIndices);
+      if (response.won) {
+        setLastResult({ win: true, msg, payout: formatBalance(response.payout / 100) });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        if (result.multiplier >= 100) playJackpot(); else playWin();
+        if (response.multiplier >= 100) playJackpot(); else playWin();
         // Glow pulse on winning reels
-        result.winIndices.forEach((isWin, i) => {
+        winIndices.forEach((isWin, i) => {
           if (!isWin) return;
           Animated.loop(
             Animated.sequence([
@@ -169,7 +166,19 @@ export default function SlotsGameScreen() {
       setIsSpinning(false);
       Animated.spring(spinBtnAnim, { toValue: 1, friction: 5, tension: 200, useNativeDriver: true }).start();
     }
-  }, [betAmount, bounceAnims, formatBalance, glowAnims, playJackpot, playLose, playWin, spinBtnAnim, updateBalance]);
+  }, [bounceAnims, formatBalance, glowAnims, playJackpot, playLose, playWin, setBalanceFromCents, spinBtnAnim]);
+
+  const cancelSpin = useCallback((message: string) => {
+    if (spinIntervalRef.current) {
+      clearInterval(spinIntervalRef.current);
+      spinIntervalRef.current = null;
+    }
+    spinningMask.current = Array(NUM_REELS).fill(false);
+    setIsSpinning(false);
+    setLastResult({ win: false, msg: message });
+    Animated.spring(spinBtnAnim, { toValue: 1, friction: 5, tension: 200, useNativeDriver: true }).start();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  }, [spinBtnAnim]);
 
   const spin = () => {
     if (isSpinning || betAmount > balance || betAmount <= 0) return;
@@ -178,14 +187,13 @@ export default function SlotsGameScreen() {
     setIsSpinning(true);
     setLastResult(null);
     setWinIndices(Array(NUM_REELS).fill(false));
-    updateBalance(-betAmount);
 
     Animated.spring(spinBtnAnim, { toValue: 0.88, friction: 5, tension: 300, useNativeDriver: true }).start();
 
-    const finalReels = Array.from({ length: NUM_REELS }, () => weightedRandom());
     spinningMask.current = Array(NUM_REELS).fill(true);
 
-    // Start rapid symbol cycling
+    // Start rapid symbol cycling immediately for feedback — purely cosmetic,
+    // the server has already decided the real result by the time it lands.
     spinIntervalRef.current = setInterval(() => {
       setReelDisplays(prev =>
         prev.map((disp, i) =>
@@ -196,16 +204,20 @@ export default function SlotsGameScreen() {
       );
     }, 55);
 
-    // Staggered stops
-    for (let i = 0; i < NUM_REELS; i++) {
-      const stopAt = SLOT_CONFIG.spinDurationBase + i * SLOT_CONFIG.reelStopInterval;
-      const isLast = i === NUM_REELS - 1;
-      setTimeout(() => stopReel(i, finalReels[i], isLast, finalReels), stopAt);
-    }
+    const betCents = Math.round(betAmount * 100);
+    spinSlots({ betAmount: betCents })
+      .then((response) => {
+        const finalReels = response.symbols.map((name) => SYMBOLS.find((s) => s.name === name)!);
+        for (let i = 0; i < NUM_REELS; i++) {
+          const stopAt = SLOT_CONFIG.spinDurationBase + i * SLOT_CONFIG.reelStopInterval;
+          const isLast = i === NUM_REELS - 1;
+          setTimeout(() => stopReel(i, finalReels[i], isLast, isLast ? response : null), stopAt);
+        }
+      })
+      .catch((err: any) => {
+        cancelSpin(err?.data?.error || "Spin failed — please try again.");
+      });
   };
-
-  const totalStop = SLOT_CONFIG.spinDurationBase + (NUM_REELS - 1) * SLOT_CONFIG.reelStopInterval + 200;
-  void totalStop; // used in setTimeout above
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>

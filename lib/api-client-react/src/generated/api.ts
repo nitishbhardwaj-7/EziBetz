@@ -5,18 +5,45 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AuthResponse,
+  BlackjackDealRequest,
+  BlackjackHandRequest,
+  BlackjackHandResponse,
+  DiceRollRequest,
+  DiceRollResponse,
+  GameSeedResponse,
+  HealthStatus,
+  LoginRequest,
+  LogoutResult,
+  LuckyPickDrawRequest,
+  LuckyPickDrawResponse,
+  PaymentRequest,
+  RefreshRequest,
+  RegisterRequest,
+  RotateSeedRequest,
+  RotateSeedResult,
+  RouletteSpinRequest,
+  RouletteSpinResponse,
+  SlotsSpinRequest,
+  SlotsSpinResponse,
+  TransactionResponse,
+  UserResponse,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +126,1506 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Register a new user
+ */
+export const getRegisterUrl = () => {
+  return `/api/auth/register`;
+};
+
+export const register = async (
+  registerRequest: RegisterRequest,
+  options?: RequestInit,
+): Promise<AuthResponse> => {
+  return customFetch<AuthResponse>(getRegisterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(registerRequest),
+  });
+};
+
+export const getRegisterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof register>>,
+    TError,
+    { data: BodyType<RegisterRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof register>>,
+  TError,
+  { data: BodyType<RegisterRequest> },
+  TContext
+> => {
+  const mutationKey = ["register"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof register>>,
+    { data: BodyType<RegisterRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return register(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegisterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof register>>
+>;
+export type RegisterMutationBody = BodyType<RegisterRequest>;
+export type RegisterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Register a new user
+ */
+export const useRegister = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof register>>,
+    TError,
+    { data: BodyType<RegisterRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof register>>,
+  TError,
+  { data: BodyType<RegisterRequest> },
+  TContext
+> => {
+  return useMutation(getRegisterMutationOptions(options));
+};
+
+/**
+ * @summary Login user
+ */
+export const getLoginUrl = () => {
+  return `/api/auth/login`;
+};
+
+export const login = async (
+  loginRequest: LoginRequest,
+  options?: RequestInit,
+): Promise<AuthResponse> => {
+  return customFetch<AuthResponse>(getLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(loginRequest),
+  });
+};
+
+export const getLoginMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof login>>,
+    TError,
+    { data: BodyType<LoginRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof login>>,
+  TError,
+  { data: BodyType<LoginRequest> },
+  TContext
+> => {
+  const mutationKey = ["login"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof login>>,
+    { data: BodyType<LoginRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return login(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof login>>
+>;
+export type LoginMutationBody = BodyType<LoginRequest>;
+export type LoginMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Login user
+ */
+export const useLogin = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof login>>,
+    TError,
+    { data: BodyType<LoginRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof login>>,
+  TError,
+  { data: BodyType<LoginRequest> },
+  TContext
+> => {
+  return useMutation(getLoginMutationOptions(options));
+};
+
+/**
+ * @summary Get current authenticated user
+ */
+export const getGetMeUrl = () => {
+  return `/api/auth/me`;
+};
+
+export const getMe = async (options?: RequestInit): Promise<UserResponse> => {
+  return customFetch<UserResponse>(getGetMeUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMeQueryKey = () => {
+  return [`/api/auth/me`] as const;
+};
+
+export const getGetMeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMe>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMeQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMe>>> = ({
+    signal,
+  }) => getMe({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMe>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMeQueryResult = NonNullable<Awaited<ReturnType<typeof getMe>>>;
+export type GetMeQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get current authenticated user
+ */
+
+export function useGetMe<
+  TData = Awaited<ReturnType<typeof getMe>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMeQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Exchange a refresh token for a new access token
+ */
+export const getRefreshUrl = () => {
+  return `/api/auth/refresh`;
+};
+
+export const refresh = async (
+  refreshRequest: RefreshRequest,
+  options?: RequestInit,
+): Promise<AuthResponse> => {
+  return customFetch<AuthResponse>(getRefreshUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(refreshRequest),
+  });
+};
+
+export const getRefreshMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refresh>>,
+    TError,
+    { data: BodyType<RefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refresh>>,
+  TError,
+  { data: BodyType<RefreshRequest> },
+  TContext
+> => {
+  const mutationKey = ["refresh"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refresh>>,
+    { data: BodyType<RefreshRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return refresh(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refresh>>
+>;
+export type RefreshMutationBody = BodyType<RefreshRequest>;
+export type RefreshMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Exchange a refresh token for a new access token
+ */
+export const useRefresh = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refresh>>,
+    TError,
+    { data: BodyType<RefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refresh>>,
+  TError,
+  { data: BodyType<RefreshRequest> },
+  TContext
+> => {
+  return useMutation(getRefreshMutationOptions(options));
+};
+
+/**
+ * @summary Revoke a refresh token
+ */
+export const getLogoutUrl = () => {
+  return `/api/auth/logout`;
+};
+
+export const logout = async (
+  refreshRequest: RefreshRequest,
+  options?: RequestInit,
+): Promise<LogoutResult> => {
+  return customFetch<LogoutResult>(getLogoutUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(refreshRequest),
+  });
+};
+
+export const getLogoutMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logout>>,
+    TError,
+    { data: BodyType<RefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logout>>,
+  TError,
+  { data: BodyType<RefreshRequest> },
+  TContext
+> => {
+  const mutationKey = ["logout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logout>>,
+    { data: BodyType<RefreshRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return logout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logout>>
+>;
+export type LogoutMutationBody = BodyType<RefreshRequest>;
+export type LogoutMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Revoke a refresh token
+ */
+export const useLogout = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logout>>,
+    TError,
+    { data: BodyType<RefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof logout>>,
+  TError,
+  { data: BodyType<RefreshRequest> },
+  TContext
+> => {
+  return useMutation(getLogoutMutationOptions(options));
+};
+
+/**
+ * @summary Deposit funds
+ */
+export const getDepositUrl = () => {
+  return `/api/payments/deposit`;
+};
+
+export const deposit = async (
+  paymentRequest: PaymentRequest,
+  options?: RequestInit,
+): Promise<TransactionResponse> => {
+  return customFetch<TransactionResponse>(getDepositUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(paymentRequest),
+  });
+};
+
+export const getDepositMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deposit>>,
+    TError,
+    { data: BodyType<PaymentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deposit>>,
+  TError,
+  { data: BodyType<PaymentRequest> },
+  TContext
+> => {
+  const mutationKey = ["deposit"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deposit>>,
+    { data: BodyType<PaymentRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return deposit(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DepositMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deposit>>
+>;
+export type DepositMutationBody = BodyType<PaymentRequest>;
+export type DepositMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Deposit funds
+ */
+export const useDeposit = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deposit>>,
+    TError,
+    { data: BodyType<PaymentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deposit>>,
+  TError,
+  { data: BodyType<PaymentRequest> },
+  TContext
+> => {
+  return useMutation(getDepositMutationOptions(options));
+};
+
+/**
+ * @summary Withdraw funds
+ */
+export const getWithdrawUrl = () => {
+  return `/api/payments/withdraw`;
+};
+
+export const withdraw = async (
+  paymentRequest: PaymentRequest,
+  options?: RequestInit,
+): Promise<TransactionResponse> => {
+  return customFetch<TransactionResponse>(getWithdrawUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(paymentRequest),
+  });
+};
+
+export const getWithdrawMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdraw>>,
+    TError,
+    { data: BodyType<PaymentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof withdraw>>,
+  TError,
+  { data: BodyType<PaymentRequest> },
+  TContext
+> => {
+  const mutationKey = ["withdraw"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof withdraw>>,
+    { data: BodyType<PaymentRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return withdraw(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WithdrawMutationResult = NonNullable<
+  Awaited<ReturnType<typeof withdraw>>
+>;
+export type WithdrawMutationBody = BodyType<PaymentRequest>;
+export type WithdrawMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Withdraw funds
+ */
+export const useWithdraw = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdraw>>,
+    TError,
+    { data: BodyType<PaymentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof withdraw>>,
+  TError,
+  { data: BodyType<PaymentRequest> },
+  TContext
+> => {
+  return useMutation(getWithdrawMutationOptions(options));
+};
+
+/**
+ * @summary Get transaction history
+ */
+export const getGetTransactionHistoryUrl = () => {
+  return `/api/payments/history`;
+};
+
+export const getTransactionHistory = async (
+  options?: RequestInit,
+): Promise<TransactionResponse[]> => {
+  return customFetch<TransactionResponse[]>(getGetTransactionHistoryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTransactionHistoryQueryKey = () => {
+  return [`/api/payments/history`] as const;
+};
+
+export const getGetTransactionHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTransactionHistory>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTransactionHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTransactionHistoryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTransactionHistory>>
+  > = ({ signal }) => getTransactionHistory({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTransactionHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTransactionHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTransactionHistory>>
+>;
+export type GetTransactionHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get transaction history
+ */
+
+export function useGetTransactionHistory<
+  TData = Awaited<ReturnType<typeof getTransactionHistory>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTransactionHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTransactionHistoryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the active provably-fair seed commitment
+ */
+export const getGetGameSeedUrl = () => {
+  return `/api/games/seed`;
+};
+
+export const getGameSeed = async (
+  options?: RequestInit,
+): Promise<GameSeedResponse> => {
+  return customFetch<GameSeedResponse>(getGetGameSeedUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGameSeedQueryKey = () => {
+  return [`/api/games/seed`] as const;
+};
+
+export const getGetGameSeedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGameSeed>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getGameSeed>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetGameSeedQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getGameSeed>>> = ({
+    signal,
+  }) => getGameSeed({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGameSeed>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGameSeedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGameSeed>>
+>;
+export type GetGameSeedQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the active provably-fair seed commitment
+ */
+
+export function useGetGameSeed<
+  TData = Awaited<ReturnType<typeof getGameSeed>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getGameSeed>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGameSeedQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Reveal the current seed and start a new one
+ */
+export const getRotateGameSeedUrl = () => {
+  return `/api/games/seed/rotate`;
+};
+
+export const rotateGameSeed = async (
+  rotateSeedRequest: RotateSeedRequest,
+  options?: RequestInit,
+): Promise<RotateSeedResult> => {
+  return customFetch<RotateSeedResult>(getRotateGameSeedUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rotateSeedRequest),
+  });
+};
+
+export const getRotateGameSeedMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rotateGameSeed>>,
+    TError,
+    { data: BodyType<RotateSeedRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rotateGameSeed>>,
+  TError,
+  { data: BodyType<RotateSeedRequest> },
+  TContext
+> => {
+  const mutationKey = ["rotateGameSeed"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rotateGameSeed>>,
+    { data: BodyType<RotateSeedRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return rotateGameSeed(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RotateGameSeedMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rotateGameSeed>>
+>;
+export type RotateGameSeedMutationBody = BodyType<RotateSeedRequest>;
+export type RotateGameSeedMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reveal the current seed and start a new one
+ */
+export const useRotateGameSeed = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rotateGameSeed>>,
+    TError,
+    { data: BodyType<RotateSeedRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rotateGameSeed>>,
+  TError,
+  { data: BodyType<RotateSeedRequest> },
+  TContext
+> => {
+  return useMutation(getRotateGameSeedMutationOptions(options));
+};
+
+/**
+ * @summary Place a dice bet, settled server-side
+ */
+export const getRollDiceUrl = () => {
+  return `/api/games/dice/roll`;
+};
+
+export const rollDice = async (
+  diceRollRequest: DiceRollRequest,
+  options?: RequestInit,
+): Promise<DiceRollResponse> => {
+  return customFetch<DiceRollResponse>(getRollDiceUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(diceRollRequest),
+  });
+};
+
+export const getRollDiceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rollDice>>,
+    TError,
+    { data: BodyType<DiceRollRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rollDice>>,
+  TError,
+  { data: BodyType<DiceRollRequest> },
+  TContext
+> => {
+  const mutationKey = ["rollDice"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rollDice>>,
+    { data: BodyType<DiceRollRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return rollDice(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RollDiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rollDice>>
+>;
+export type RollDiceMutationBody = BodyType<DiceRollRequest>;
+export type RollDiceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Place a dice bet, settled server-side
+ */
+export const useRollDice = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rollDice>>,
+    TError,
+    { data: BodyType<DiceRollRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rollDice>>,
+  TError,
+  { data: BodyType<DiceRollRequest> },
+  TContext
+> => {
+  return useMutation(getRollDiceMutationOptions(options));
+};
+
+/**
+ * @summary Place a roulette bet, settled server-side
+ */
+export const getSpinRouletteUrl = () => {
+  return `/api/games/roulette/spin`;
+};
+
+export const spinRoulette = async (
+  rouletteSpinRequest: RouletteSpinRequest,
+  options?: RequestInit,
+): Promise<RouletteSpinResponse> => {
+  return customFetch<RouletteSpinResponse>(getSpinRouletteUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rouletteSpinRequest),
+  });
+};
+
+export const getSpinRouletteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof spinRoulette>>,
+    TError,
+    { data: BodyType<RouletteSpinRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof spinRoulette>>,
+  TError,
+  { data: BodyType<RouletteSpinRequest> },
+  TContext
+> => {
+  const mutationKey = ["spinRoulette"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof spinRoulette>>,
+    { data: BodyType<RouletteSpinRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return spinRoulette(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SpinRouletteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof spinRoulette>>
+>;
+export type SpinRouletteMutationBody = BodyType<RouletteSpinRequest>;
+export type SpinRouletteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Place a roulette bet, settled server-side
+ */
+export const useSpinRoulette = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof spinRoulette>>,
+    TError,
+    { data: BodyType<RouletteSpinRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof spinRoulette>>,
+  TError,
+  { data: BodyType<RouletteSpinRequest> },
+  TContext
+> => {
+  return useMutation(getSpinRouletteMutationOptions(options));
+};
+
+/**
+ * @summary Spin the slots, settled server-side
+ */
+export const getSpinSlotsUrl = () => {
+  return `/api/games/slots/spin`;
+};
+
+export const spinSlots = async (
+  slotsSpinRequest: SlotsSpinRequest,
+  options?: RequestInit,
+): Promise<SlotsSpinResponse> => {
+  return customFetch<SlotsSpinResponse>(getSpinSlotsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(slotsSpinRequest),
+  });
+};
+
+export const getSpinSlotsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof spinSlots>>,
+    TError,
+    { data: BodyType<SlotsSpinRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof spinSlots>>,
+  TError,
+  { data: BodyType<SlotsSpinRequest> },
+  TContext
+> => {
+  const mutationKey = ["spinSlots"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof spinSlots>>,
+    { data: BodyType<SlotsSpinRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return spinSlots(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SpinSlotsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof spinSlots>>
+>;
+export type SpinSlotsMutationBody = BodyType<SlotsSpinRequest>;
+export type SpinSlotsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Spin the slots, settled server-side
+ */
+export const useSpinSlots = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof spinSlots>>,
+    TError,
+    { data: BodyType<SlotsSpinRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof spinSlots>>,
+  TError,
+  { data: BodyType<SlotsSpinRequest> },
+  TContext
+> => {
+  return useMutation(getSpinSlotsMutationOptions(options));
+};
+
+/**
+ * @summary Place a lucky-pick bet, settled server-side
+ */
+export const getDrawLuckyPickUrl = () => {
+  return `/api/games/lucky-pick/draw`;
+};
+
+export const drawLuckyPick = async (
+  luckyPickDrawRequest: LuckyPickDrawRequest,
+  options?: RequestInit,
+): Promise<LuckyPickDrawResponse> => {
+  return customFetch<LuckyPickDrawResponse>(getDrawLuckyPickUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(luckyPickDrawRequest),
+  });
+};
+
+export const getDrawLuckyPickMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof drawLuckyPick>>,
+    TError,
+    { data: BodyType<LuckyPickDrawRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof drawLuckyPick>>,
+  TError,
+  { data: BodyType<LuckyPickDrawRequest> },
+  TContext
+> => {
+  const mutationKey = ["drawLuckyPick"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof drawLuckyPick>>,
+    { data: BodyType<LuckyPickDrawRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return drawLuckyPick(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DrawLuckyPickMutationResult = NonNullable<
+  Awaited<ReturnType<typeof drawLuckyPick>>
+>;
+export type DrawLuckyPickMutationBody = BodyType<LuckyPickDrawRequest>;
+export type DrawLuckyPickMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Place a lucky-pick bet, settled server-side
+ */
+export const useDrawLuckyPick = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof drawLuckyPick>>,
+    TError,
+    { data: BodyType<LuckyPickDrawRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof drawLuckyPick>>,
+  TError,
+  { data: BodyType<LuckyPickDrawRequest> },
+  TContext
+> => {
+  return useMutation(getDrawLuckyPickMutationOptions(options));
+};
+
+/**
+ * @summary Start a new blackjack hand
+ */
+export const getDealBlackjackUrl = () => {
+  return `/api/games/blackjack/deal`;
+};
+
+export const dealBlackjack = async (
+  blackjackDealRequest: BlackjackDealRequest,
+  options?: RequestInit,
+): Promise<BlackjackHandResponse> => {
+  return customFetch<BlackjackHandResponse>(getDealBlackjackUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(blackjackDealRequest),
+  });
+};
+
+export const getDealBlackjackMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dealBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackDealRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dealBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackDealRequest> },
+  TContext
+> => {
+  const mutationKey = ["dealBlackjack"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dealBlackjack>>,
+    { data: BodyType<BlackjackDealRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return dealBlackjack(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DealBlackjackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dealBlackjack>>
+>;
+export type DealBlackjackMutationBody = BodyType<BlackjackDealRequest>;
+export type DealBlackjackMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Start a new blackjack hand
+ */
+export const useDealBlackjack = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dealBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackDealRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dealBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackDealRequest> },
+  TContext
+> => {
+  return useMutation(getDealBlackjackMutationOptions(options));
+};
+
+/**
+ * @summary Take another card on the current hand
+ */
+export const getHitBlackjackUrl = () => {
+  return `/api/games/blackjack/hit`;
+};
+
+export const hitBlackjack = async (
+  blackjackHandRequest: BlackjackHandRequest,
+  options?: RequestInit,
+): Promise<BlackjackHandResponse> => {
+  return customFetch<BlackjackHandResponse>(getHitBlackjackUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(blackjackHandRequest),
+  });
+};
+
+export const getHitBlackjackMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof hitBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackHandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof hitBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackHandRequest> },
+  TContext
+> => {
+  const mutationKey = ["hitBlackjack"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof hitBlackjack>>,
+    { data: BodyType<BlackjackHandRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return hitBlackjack(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type HitBlackjackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof hitBlackjack>>
+>;
+export type HitBlackjackMutationBody = BodyType<BlackjackHandRequest>;
+export type HitBlackjackMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Take another card on the current hand
+ */
+export const useHitBlackjack = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof hitBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackHandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof hitBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackHandRequest> },
+  TContext
+> => {
+  return useMutation(getHitBlackjackMutationOptions(options));
+};
+
+/**
+ * @summary Stand — dealer plays out and the hand settles
+ */
+export const getStandBlackjackUrl = () => {
+  return `/api/games/blackjack/stand`;
+};
+
+export const standBlackjack = async (
+  blackjackHandRequest: BlackjackHandRequest,
+  options?: RequestInit,
+): Promise<BlackjackHandResponse> => {
+  return customFetch<BlackjackHandResponse>(getStandBlackjackUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(blackjackHandRequest),
+  });
+};
+
+export const getStandBlackjackMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof standBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackHandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof standBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackHandRequest> },
+  TContext
+> => {
+  const mutationKey = ["standBlackjack"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof standBlackjack>>,
+    { data: BodyType<BlackjackHandRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return standBlackjack(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StandBlackjackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof standBlackjack>>
+>;
+export type StandBlackjackMutationBody = BodyType<BlackjackHandRequest>;
+export type StandBlackjackMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Stand — dealer plays out and the hand settles
+ */
+export const useStandBlackjack = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof standBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackHandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof standBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackHandRequest> },
+  TContext
+> => {
+  return useMutation(getStandBlackjackMutationOptions(options));
+};
+
+/**
+ * @summary Double down — doubles the bet, deals one card, then auto-stands
+ */
+export const getDoubleBlackjackUrl = () => {
+  return `/api/games/blackjack/double`;
+};
+
+export const doubleBlackjack = async (
+  blackjackHandRequest: BlackjackHandRequest,
+  options?: RequestInit,
+): Promise<BlackjackHandResponse> => {
+  return customFetch<BlackjackHandResponse>(getDoubleBlackjackUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(blackjackHandRequest),
+  });
+};
+
+export const getDoubleBlackjackMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof doubleBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackHandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof doubleBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackHandRequest> },
+  TContext
+> => {
+  const mutationKey = ["doubleBlackjack"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof doubleBlackjack>>,
+    { data: BodyType<BlackjackHandRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return doubleBlackjack(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DoubleBlackjackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof doubleBlackjack>>
+>;
+export type DoubleBlackjackMutationBody = BodyType<BlackjackHandRequest>;
+export type DoubleBlackjackMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Double down — doubles the bet, deals one card, then auto-stands
+ */
+export const useDoubleBlackjack = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof doubleBlackjack>>,
+    TError,
+    { data: BodyType<BlackjackHandRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof doubleBlackjack>>,
+  TError,
+  { data: BodyType<BlackjackHandRequest> },
+  TContext
+> => {
+  return useMutation(getDoubleBlackjackMutationOptions(options));
+};
