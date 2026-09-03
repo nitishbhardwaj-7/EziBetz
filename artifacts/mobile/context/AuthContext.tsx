@@ -11,8 +11,11 @@ import {
   logout as apiLogout,
 } from "@workspace/api-client-react";
 
-// Initialize base URL for the backend API
-setBaseUrl("http://localhost:3000");
+// Initialize base URL for the backend API. EXPO_PUBLIC_API_URL is inlined
+// at build time (Expo's built-in support for EXPO_PUBLIC_* env vars), so a
+// production build points at the real deployed API instead of localhost —
+// set it in artifacts/mobile/.env.production before building for release.
+setBaseUrl(process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000");
 
 // Token storage keys
 const TOKEN_KEY = "@ezibetz_auth_token";
