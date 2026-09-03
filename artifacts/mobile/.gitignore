@@ -39,5 +39,7 @@ yarn-error.*
 .vercel
 
 .env
-.env.production
-!.env.production.example
+
+# .env.production is intentionally NOT ignored: it holds only the public
+# API URL (EXPO_PUBLIC_API_URL), not a secret, and GitHub Actions needs it
+# present at build time to bake the right URL into a release build.
