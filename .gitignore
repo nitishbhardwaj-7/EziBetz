@@ -52,3 +52,5 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+# Not a secret — just the public API URL the mobile app is built against.
+!artifacts/mobile/.env.production
