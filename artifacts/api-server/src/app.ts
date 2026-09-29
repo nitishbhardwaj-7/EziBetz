@@ -6,6 +6,18 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Behind a single reverse proxy (nginx) in production — without this,
+// Express can't trust the X-Forwarded-For header nginx sets, so
+// express-rate-limit can't tell real clients apart and effectively rate
+// limits everyone behind the proxy as one IP.
+if (process.env.TRUST_PROXY) {
+  app.set("trust proxy", process.env.TRUST_PROXY === "true" ? true : Number(process.env.TRUST_PROXY));
+}
+
+app.get("/", (_req, res) => {
+  res.json({ name: "EziBetz API", status: "ok" });
+});
+
 app.use(
   pinoHttp({
     logger,
