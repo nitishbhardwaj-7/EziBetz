@@ -74,10 +74,14 @@ function describeResult(symbols: string[], won: boolean): { msg: string; winIndi
   return { msg, winIndices };
 }
 
+// Derived from SLOT_CONFIG instead of hardcoded, so this can't silently
+// drift out of sync with what actually gets paid (which is exactly what
+// happened before: this showed "500x" etc. after the real multipliers had
+// already been rescaled).
 const PAYTABLE = [
-  { icon: "diamond",        label: "JACKPOT",    payout: "500x", color: "#00f4fe" },
-  { icon: "lightning-bolt", label: "LIGHTNING",  payout: "100x", color: "#ff59e3" },
-  { icon: "star",           label: "STAR RUSH",  payout: "50x",  color: "#ede0fd" },
+  { icon: "diamond",        label: "JACKPOT",    payout: `${SLOT_CONFIG.symbolMultipliers.Diamond}x`,   color: "#00f4fe" },
+  { icon: "lightning-bolt", label: "LIGHTNING",  payout: `${SLOT_CONFIG.symbolMultipliers.Lightning}x`, color: "#ff59e3" },
+  { icon: "star",           label: "STAR RUSH",  payout: `${SLOT_CONFIG.symbolMultipliers.Star}x`,      color: "#ede0fd" },
 ];
 
 export default function SlotsGameScreen() {

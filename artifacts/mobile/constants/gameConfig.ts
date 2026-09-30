@@ -14,8 +14,8 @@ export const SLOT_CONFIG = {
   symbolWeights: [2, 5, 10, 14, 22, 24, 23] as const,
   matchMultipliers: { 3: 0.12, 4: 0.38, 5: 1.0 } as const,
   symbolMultipliers: {
-    Diamond: 500, Lightning: 100, Star: 50,
-    Rocket: 25,   Clover: 10,    Crown: 15, Cards: 8,
+    Diamond: 850, Lightning: 170, Star: 85,
+    Rocket: 42,   Clover: 17,    Crown: 25, Cards: 13,
   } as const,
   spinDurationBase: 1800,  // ms before first reel stops
   reelStopInterval: 320,   // ms between consecutive reel stops
@@ -34,7 +34,7 @@ export const ROULETTE_CONFIG = {
 // values are display-only. Keep them numerically identical to the server's
 // copy, or the odds shown here will lie about what actually gets paid.
 export const DICE_CONFIG = {
-  overUnderMultiplier: 2.1,   // over/under 3.5
+  overUnderMultiplier: 1.95,  // over 3.5
   underMultiplier: 1.8,       // under 3.5 (slightly worse)
   exactMultiplier: 6.0,       // exact number
 };
